@@ -5,3 +5,13 @@ cache/*
 !cache/keep.txt
 .idea
 .DS_Store
+
+# V3 credential files
+google_drive_auth.json
+token_drive.json
+google_auth.json
+test-config.json
+
+# Test outputs
+test_v3_standalone.output
+coverage/
