@@ -112,10 +112,14 @@ class PhotoDatabase {
           -- Simple view tracking (no analytics)
           last_viewed_at INTEGER,
 
-          -- Cache tracking
+          -- Cache tracking (legacy file-based)
           cached_path TEXT,
           cached_at INTEGER,
-          cached_size_bytes INTEGER
+          cached_size_bytes INTEGER,
+
+          -- BLOB storage (new efficient storage)
+          cached_data BLOB,
+          cached_mime_type TEXT
         );
 
         -- Settings (for Changes API token)
@@ -124,13 +128,20 @@ class PhotoDatabase {
           value TEXT
         );
 
-        -- Two indexes only
-        CREATE INDEX IF NOT EXISTS idx_display ON photos(cached_path, last_viewed_at)
+        -- Optimized indexes for BLOB storage
+        CREATE INDEX IF NOT EXISTS idx_display_blob ON photos(last_viewed_at)
+          WHERE cached_data IS NOT NULL;
+
+        CREATE INDEX IF NOT EXISTS idx_display_file ON photos(cached_path, last_viewed_at)
           WHERE cached_path IS NOT NULL;
 
         CREATE INDEX IF NOT EXISTS idx_prefetch ON photos(last_viewed_at)
-          WHERE cached_path IS NULL;
+          WHERE cached_data IS NULL AND cached_path IS NULL;
       `);
+
+      // Optimize SQLite for BLOB storage
+      await this.db.exec("PRAGMA page_size = 16384");  // Better for larger BLOBs
+      await this.db.exec("PRAGMA cache_size = -64000"); // 64MB cache
 
       this.log("[DB] Schema created successfully");
 
@@ -212,15 +223,16 @@ class PhotoDatabase {
   }
 
   /**
-   * Get next photo to display (cached photos only)
+   * Get next photo to display (BLOB or file-based)
+   * Prioritizes BLOB storage, falls back to file-based
    * @returns {Promise<Object|null>} Photo metadata or null
    */
   async getNextPhoto() {
     try {
       const photo = await this.db.get(`
-        SELECT id, cached_path, filename, width, height
+        SELECT id, cached_path, cached_data, filename, width, height
         FROM photos
-        WHERE cached_path IS NOT NULL
+        WHERE (cached_data IS NOT NULL OR cached_path IS NOT NULL)
         ORDER BY last_viewed_at ASC NULLS FIRST, RANDOM()
         LIMIT 1
       `);
@@ -275,7 +287,7 @@ class PhotoDatabase {
   }
 
   /**
-   * Update cache information for a photo
+   * Update cache information for a photo (legacy file-based)
    * @param {string} photoId - Photo ID
    * @param {string} cachedPath - Path to cached file
    * @param {number} sizeBytes - File size in bytes
@@ -292,6 +304,56 @@ class PhotoDatabase {
     } catch (error) {
       this.log(`[DB] Error updating cache for ${photoId}:`, error.message);
       throw error;
+    }
+  }
+
+  /**
+   * Store photo as BLOB (new efficient method)
+   * @param {string} photoId - Photo ID
+   * @param {Buffer} imageBuffer - Processed image buffer
+   * @param {string} mimeType - MIME type (e.g., 'image/jpeg')
+   * @returns {Promise<void>}
+   */
+  async updatePhotoCacheBlob(photoId, imageBuffer, mimeType = 'image/jpeg') {
+    try {
+      const sizeBytes = imageBuffer.length;
+
+      await this.db.run(`
+        UPDATE photos
+        SET cached_data = ?,
+            cached_mime_type = ?,
+            cached_at = ?,
+            cached_size_bytes = ?,
+            cached_path = NULL
+        WHERE id = ?
+      `, [imageBuffer, mimeType, Date.now(), sizeBytes, photoId]);
+
+      this.log(`[DB] Stored BLOB for ${photoId}: ${(sizeBytes / 1024).toFixed(2)}KB`);
+
+    } catch (error) {
+      this.log(`[DB] Error storing BLOB for ${photoId}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Get photo BLOB data
+   * @param {string} photoId - Photo ID
+   * @returns {Promise<Buffer|null>} Image buffer or null
+   */
+  async getPhotoBlob(photoId) {
+    try {
+      const result = await this.db.get(`
+        SELECT cached_data, cached_mime_type
+        FROM photos
+        WHERE id = ? AND cached_data IS NOT NULL
+      `, [photoId]);
+
+      return result ? result.cached_data : null;
+
+    } catch (error) {
+      this.log(`[DB] Error getting BLOB for ${photoId}:`, error.message);
+      return null;
     }
   }
 

@@ -247,8 +247,21 @@ const NodeHelperObject = {
         return;
       }
 
-      // Read photo from disk
-      const imageBuffer = await fs.promises.readFile(photo.cached_path);
+      // Get image buffer (BLOB or file-based)
+      let imageBuffer;
+
+      if (photo.cached_data) {
+        // BLOB mode: Data already in database
+        imageBuffer = photo.cached_data;
+        this.log_debug(`Loaded photo from BLOB: ${photo.filename}`);
+      } else if (photo.cached_path) {
+        // Legacy mode: Read from file
+        imageBuffer = await fs.promises.readFile(photo.cached_path);
+        this.log_debug(`Loaded photo from file: ${photo.filename}`);
+      } else {
+        this.log_error(`Photo ${photo.id} has no cached data`);
+        return;
+      }
 
       // Send to frontend
       this.sendSocketNotification("DISPLAY_PHOTO", {

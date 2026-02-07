@@ -3,6 +3,15 @@
 const fs = require("fs");
 const path = require("path");
 const { finished } = require("stream/promises");
+const { Readable } = require("stream");
+
+// Optional: Sharp for image processing (install with: npm install sharp)
+let sharp = null;
+try {
+  sharp = require("sharp");
+} catch (e) {
+  console.log("[CACHE] Sharp not available, using file-based caching");
+}
 
 /**
  * Cache Manager with Graceful Degradation
@@ -25,10 +34,21 @@ class CacheManager {
     this.consecutiveFailures = 0;  // Track failures for graceful degradation
     this.tickInterval = 30000;     // Fixed 30-second tick
 
+    // BLOB storage mode (enabled when sharp is available)
+    this.useBlobStorage = sharp !== null && (config.useBlobStorage !== false);
+
+    // Image processing settings
+    this.screenWidth = config.showWidth || 1920;
+    this.screenHeight = config.showHeight || 1080;
+    this.jpegQuality = config.jpegQuality || 85;
+
     // Start the tick timer
     this.timer = setInterval(() => this.tick(), this.tickInterval);
 
-    this.log("[CACHE] Cache manager initialized");
+    this.log(`[CACHE] Cache manager initialized (BLOB mode: ${this.useBlobStorage ? 'enabled' : 'disabled'})`);
+    if (this.useBlobStorage) {
+      this.log(`[CACHE] Image processing: ${this.screenWidth}x${this.screenHeight} @ ${this.jpegQuality}% quality`);
+    }
   }
 
   /**
@@ -115,37 +135,36 @@ class CacheManager {
       // Retry loop with exponential backoff
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-          // Get cache directory
-          const cacheDir = this.config.cachePath || path.resolve(__dirname, "..", "cache", "images");
-          await fs.promises.mkdir(cacheDir, { recursive: true });
-
-          // Download from Drive with timeout
           this.log(`[CACHE] Downloading photo ${photoId} (attempt ${attempt}/${maxRetries})...`);
 
           const stream = await this.drive.downloadPhoto(photoId, { timeout: 30000 });
 
-          // Save to file
+          // BLOB mode: Process and store in database
+          if (this.useBlobStorage) {
+            return await this.processAndStoreBlob(photoId, stream);
+          }
+
+          // Legacy mode: Save to file
+          const cacheDir = this.config.cachePath || path.resolve(__dirname, "..", "cache", "images");
+          await fs.promises.mkdir(cacheDir, { recursive: true });
+
           const filePath = path.join(cacheDir, `${photoId}.jpg`);
           const writeStream = fs.createWriteStream(filePath);
 
           await finished(stream.pipe(writeStream));
 
-          // Get file size
           const stats = await fs.promises.stat(filePath);
-
-          // Update database
           await this.db.updatePhotoCache(photoId, filePath, stats.size);
 
-          this.log(`[CACHE] Successfully downloaded ${photoId} (${(stats.size / 1024).toFixed(2)}KB)`);
+          this.log(`[CACHE] Downloaded ${photoId} (${(stats.size / 1024).toFixed(2)}KB)`);
 
           return { success: true, photoId, size: stats.size };
 
         } catch (error) {
           if (attempt === maxRetries) {
-            throw error; // Give up after max retries
+            throw error;
           }
 
-          // Exponential backoff: 1s, 2s, 3s
           this.log(`[CACHE] Attempt ${attempt} failed for ${photoId}, retrying...`);
           await this.sleep(attempt * 1000);
         }
@@ -153,6 +172,49 @@ class CacheManager {
 
     } catch (error) {
       this.log(`[CACHE] Failed to download ${photoId}:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Process image stream and store as BLOB with resizing
+   * @param {string} photoId - Photo ID
+   * @param {Stream} stream - Image stream from Drive
+   * @returns {Promise<Object>} Processing result
+   */
+  async processAndStoreBlob(photoId, stream) {
+    try {
+      // Stream to buffer
+      const chunks = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+      }
+      const originalBuffer = Buffer.concat(chunks);
+
+      this.log(`[CACHE] Processing ${photoId} (${(originalBuffer.length / 1024).toFixed(2)}KB)`);
+
+      // Resize and compress with sharp
+      const processedBuffer = await sharp(originalBuffer)
+        .resize(this.screenWidth, this.screenHeight, {
+          fit: 'inside',          // Maintain aspect ratio
+          withoutEnlargement: true // Don't upscale small images
+        })
+        .jpeg({
+          quality: this.jpegQuality,
+          progressive: true,
+          mozjpeg: true
+        })
+        .toBuffer();
+
+      // Store in database
+      await this.db.updatePhotoCacheBlob(photoId, processedBuffer, 'image/jpeg');
+
+      this.log(`[CACHE] Stored BLOB ${photoId}: ${(originalBuffer.length / 1024).toFixed(2)}KB → ${(processedBuffer.length / 1024).toFixed(2)}KB`);
+
+      return { success: true, photoId, size: processedBuffer.length };
+
+    } catch (error) {
+      this.log(`[CACHE] Failed to process ${photoId}:`, error.message);
       throw error;
     }
   }
