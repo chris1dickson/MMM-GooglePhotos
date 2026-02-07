@@ -59,6 +59,14 @@ Module.register("MMM-GooglePhotos", {
   },
 
   socketNotificationReceived: function (noti, payload) {
+    // V3 Support: Handle DISPLAY_PHOTO notification (base64 images from Drive API)
+    if (noti === "DISPLAY_PHOTO") {
+      Log.info("[GPHOTOS-V3] Received photo from backend:", payload.filename);
+      this.displayPhotoV3(payload);
+      return;
+    }
+
+    // V2 Compatibility below
     if (noti === "UPLOADABLE_ALBUM") {
       this.uploadableAlbum = payload;
     }
@@ -90,7 +98,7 @@ Module.register("MMM-GooglePhotos", {
       errMsgDiv.style.lineHeight = "80vh";
       errMsgDiv.style.fontSize = "1.5em";
       errMsgDiv.style.verticalAlign = "middle";
-      errMsgDiv.textContent = payload;
+      errMsgDiv.textContent = payload.message || payload;
       current.appendChild(errMsgDiv);
     }
     if (noti === "CLEAR_ERROR") {
@@ -147,6 +155,37 @@ Module.register("MMM-GooglePhotos", {
         this.sendSocketNotification("NEED_MORE_PICS", []);
       }, 2000);
     }
+  },
+
+  // V3 Support: Display photos from base64 data
+  displayPhotoV3: function (photo) {
+    const dataUrl = `data:image/jpeg;base64,${photo.image}`;
+
+    const img = new Image();
+    img.onload = () => {
+      const back = document.getElementById("GPHOTO_BACK");
+      const current = document.getElementById("GPHOTO_CURRENT");
+
+      if (!current) return;
+
+      current.textContent = "";
+      back.style.backgroundImage = `url(${dataUrl})`;
+      current.style.backgroundImage = `url(${dataUrl})`;
+      current.classList.add("animated");
+
+      // Update info with filename
+      const info = document.getElementById("GPHOTO_INFO");
+      if (info) {
+        info.innerHTML = photo.filename || "";
+      }
+
+      // Notify backend
+      this.sendSocketNotification("IMAGE_LOADED", { id: photo.id });
+    };
+    img.onerror = () => {
+      Log.error("[GPHOTOS-V3] Failed to load image:", photo.filename);
+    };
+    img.src = dataUrl;
   },
 
   ready: function (url, target) {
