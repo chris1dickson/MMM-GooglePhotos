@@ -1,0 +1,11 @@
+{
+  "clientId": "YOUR_AZURE_CLIENT_ID",
+  "clientSecret": "YOUR_AZURE_CLIENT_SECRET",
+  "tokenPath": "./token_onedrive.json",
+  "folders": [
+    {
+      "id": "YOUR_ONEDRIVE_FOLDER_ID",
+      "depth": -1
+    }
+  ]
+}

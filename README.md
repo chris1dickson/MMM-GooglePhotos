@@ -580,7 +580,39 @@ node test_blob_storage.js
 - Image resizing and compression
 - Performance comparison (BLOB vs file-based)
 
-#### 4. Jest Unit Tests
+#### 4. OneDrive Provider Test
+
+```bash
+cd ~/MagicMirror/modules/MMM-CloudPhotos
+node test_onedrive.js
+```
+
+**What it tests:**
+- OneDrive API authentication (Microsoft Graph)
+- OneDrive folder scanning
+- Delta API for incremental sync
+- Photo caching with OneDrive
+- Token refresh functionality
+
+**Setup:**
+1. Create `test-config-onedrive.json` (see `test-config-onedrive.json.example`)
+2. Run `node generate_onedrive_token.js` to get OAuth token
+3. Add your folder ID to config
+4. Run the test script
+
+**Config format:**
+```json
+{
+  "clientId": "YOUR_AZURE_CLIENT_ID",
+  "clientSecret": "YOUR_AZURE_CLIENT_SECRET",
+  "tokenPath": "./token_onedrive.json",
+  "folders": [
+    { "id": "YOUR_FOLDER_ID", "depth": -1 }
+  ]
+}
+```
+
+#### 5. Jest Unit Tests
 
 ```bash
 cd ~/MagicMirror/modules/MMM-CloudPhotos
@@ -599,7 +631,7 @@ npm test     # Run all tests with coverage
 - `CacheManager` - Cache eviction, BLOB storage, size limits
 - `full-workflow` - End-to-end integration test
 
-#### 5. Linting
+#### 6. Linting
 
 ```bash
 npm run lint:js
@@ -608,6 +640,8 @@ npm run lint:js
 Runs ESLint with auto-fix to ensure code quality.
 
 ### Test Configuration
+
+#### Google Drive Tests
 
 Most test scripts require a configuration file. Create `test-config.json`:
 
@@ -626,6 +660,23 @@ Most test scripts require a configuration file. Create `test-config.json`:
   "sortMode": "sequential"
 }
 ```
+
+#### OneDrive Tests
+
+For OneDrive testing, create `test-config-onedrive.json`:
+
+```json
+{
+  "clientId": "YOUR_AZURE_CLIENT_ID",
+  "clientSecret": "YOUR_AZURE_CLIENT_SECRET",
+  "tokenPath": "./token_onedrive.json",
+  "folders": [
+    { "id": "YOUR_FOLDER_ID", "depth": -1 }
+  ]
+}
+```
+
+See `ONEDRIVE_SETUP.md` for Azure app setup instructions.
 
 ### Development Workflow
 
