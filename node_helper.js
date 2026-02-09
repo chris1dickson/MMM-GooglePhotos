@@ -1,9 +1,9 @@
 "use strict";
 
 /**
- * MMM-GooglePhotos Node Helper - V3 (Google Drive Migration)
+ * MMM-CloudPhotos Node Helper - V3 (Multi-Provider Architecture)
  *
- * This is the refactored backend using Google Drive API instead of Google Photos API
+ * Supports multiple cloud storage providers through a provider abstraction layer
  */
 
 const fs = require("fs");
@@ -11,8 +11,8 @@ const path = require("path");
 const NodeHelper = require("node_helper");
 const Log = require("logger");
 
-// Import our new components
-const GDriveAPI = require("./components/GDriveAPI.js");
+// Import provider system and components
+const { createProvider } = require("./components/providers/ProviderFactory.js");
 const PhotoDatabase = require("./components/PhotoDatabase.js");
 const CacheManager = require("./components/CacheManager.js");
 
@@ -22,7 +22,7 @@ const NodeHelperObject = {
     this.initialized = false;
 
     // Component instances
-    this.driveAPI = null;
+    this.photoProvider = null;
     this.database = null;
     this.cacheManager = null;
 
@@ -73,19 +73,19 @@ const NodeHelperObject = {
   },
 
   log_debug: function (...args) {
-    Log.debug("[GPHOTOS-V3]", ...args);
+    Log.debug("[CLOUDPHOTOS]", ...args);
   },
 
   log_info: function (...args) {
-    Log.info("[GPHOTOS-V3]", ...args);
+    Log.info("[CLOUDPHOTOS]", ...args);
   },
 
   log_error: function (...args) {
-    Log.error("[GPHOTOS-V3]", ...args);
+    Log.error("[CLOUDPHOTOS]", ...args);
   },
 
   log_warn: function (...args) {
-    Log.warn("[GPHOTOS-V3]", ...args);
+    Log.warn("[CLOUDPHOTOS]", ...args);
   },
 
   /**
@@ -98,7 +98,7 @@ const NodeHelperObject = {
     }
 
     try {
-      this.log_info("Initializing MMM-GooglePhotos V3 (Google Drive)...");
+      this.log_info("Initializing MMM-CloudPhotos V3...");
       this.config = config;
 
       // Ensure cache directories exist
@@ -115,28 +115,37 @@ const NodeHelperObject = {
       );
       await this.database.initialize();
 
-      // Initialize Google Drive API
-      this.log_info("Initializing Google Drive API...");
-      this.driveAPI = new GDriveAPI(
-        {
-          keyFilePath: config.keyFilePath || "./google_drive_auth.json",
-          tokenPath: config.tokenPath || "./token_drive.json",
-          driveFolders: config.driveFolders || []
-        },
-        this.database,
-        this.log_info.bind(this)
-      );
-      await this.driveAPI.initialize();
+      // Initialize cloud storage provider
+      const providerName = config.provider || "google-drive";
+      const providerConfig = config.providerConfig || {
+        keyFilePath: config.keyFilePath || "./google_drive_auth.json",
+        tokenPath: config.tokenPath || "./token_drive.json",
+        driveFolders: config.driveFolders || []
+      };
+
+      this.log_info(`Initializing cloud provider: ${providerName}...`);
+      this.photoProvider = createProvider(providerName, providerConfig, this.log_info.bind(this));
+
+      // Set database reference for providers that support incremental sync
+      if (typeof this.photoProvider.setDatabase === 'function') {
+        this.photoProvider.setDatabase(this.database);
+      }
+
+      await this.photoProvider.initialize();
 
       // Initialize cache manager
       this.log_info("Initializing cache manager...");
       this.cacheManager = new CacheManager(
         {
           cachePath: this.cachePath,
-          maxCacheSizeMB: config.maxCacheSizeMB || 200
+          maxCacheSizeMB: config.maxCacheSizeMB || 200,
+          showWidth: config.showWidth,
+          showHeight: config.showHeight,
+          jpegQuality: config.jpegQuality,
+          useBlobStorage: config.useBlobStorage
         },
         this.database,
-        this.driveAPI,
+        this.photoProvider,
         this.log_info.bind(this)
       );
 
@@ -166,15 +175,57 @@ const NodeHelperObject = {
   },
 
   /**
-   * Perform initial scan of Drive folders
+   * Perform initial scan of cloud storage
    */
   performInitialScan: async function () {
     try {
-      this.log_info("Starting initial scan of Google Drive folders...");
-      this.sendSocketNotification("UPDATE_STATUS", "Scanning Google Drive...");
+      this.log_info(`Starting initial scan of ${this.photoProvider.getProviderName()}...`);
+      this.sendSocketNotification("UPDATE_STATUS", `Scanning ${this.photoProvider.getProviderName()}...`);
 
-      // Use scanForChanges which will do full scan on first run
-      const photos = await this.driveAPI.scanForChanges();
+      // Try incremental sync first (will fall back to full scan if needed)
+      let photos = [];
+
+      // Check if provider supports incremental sync
+      const token = await this.database.getSetting("changes_token");
+
+      if (token && typeof this.photoProvider.getChanges === 'function') {
+        // Use incremental sync
+        const changes = await this.photoProvider.getChanges(token);
+        photos = changes.photos;
+
+        // Handle deletions
+        if (changes.deletedIds && changes.deletedIds.length > 0) {
+          for (const id of changes.deletedIds) {
+            await this.database.deletePhoto(id);
+          }
+        }
+
+        // Save new token
+        if (changes.nextToken) {
+          await this.database.saveSetting("changes_token", changes.nextToken);
+        }
+      } else {
+        // Full scan (first run or provider doesn't support incremental)
+        if (typeof this.photoProvider.fullScan === 'function') {
+          photos = await this.photoProvider.fullScan();
+        } else {
+          // Provider doesn't have fullScan, use scanFolder on all configured folders
+          const folders = this.config.providerConfig?.driveFolders || this.config.driveFolders || [];
+          for (const folderConfig of folders) {
+            const folderPhotos = await this.photoProvider.scanFolder(
+              folderConfig.id || null,
+              folderConfig.depth !== undefined ? folderConfig.depth : -1
+            );
+            photos.push(...folderPhotos);
+          }
+        }
+
+        // Get start token for future incremental syncs
+        if (typeof this.photoProvider.getStartPageToken === 'function') {
+          const startToken = await this.photoProvider.getStartPageToken();
+          await this.database.saveSetting("changes_token", startToken);
+        }
+      }
 
       if (photos.length > 0) {
         this.log_info(`Found ${photos.length} photos, saving to database...`);
@@ -208,7 +259,32 @@ const NodeHelperObject = {
       try {
         this.log_info("Running periodic scan...");
 
-        const photos = await this.driveAPI.scanForChanges();
+        let photos = [];
+        const token = await this.database.getSetting("changes_token");
+
+        // Use incremental sync if supported and we have a token
+        if (token && typeof this.photoProvider.getChanges === 'function') {
+          const changes = await this.photoProvider.getChanges(token);
+          photos = changes.photos;
+
+          // Handle deletions
+          if (changes.deletedIds && changes.deletedIds.length > 0) {
+            for (const id of changes.deletedIds) {
+              await this.database.deletePhoto(id);
+            }
+            this.log_info(`Removed ${changes.deletedIds.length} deleted photos`);
+          }
+
+          // Save new token
+          if (changes.nextToken) {
+            await this.database.saveSetting("changes_token", changes.nextToken);
+          }
+        } else {
+          // Fall back to full scan
+          if (typeof this.photoProvider.fullScan === 'function') {
+            photos = await this.photoProvider.fullScan();
+          }
+        }
 
         if (photos.length > 0) {
           this.log_info(`Found ${photos.length} new/changed photos`);

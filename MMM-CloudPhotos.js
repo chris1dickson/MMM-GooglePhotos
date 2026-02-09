@@ -1,8 +1,8 @@
 //
 //
-// MMM-GooglePhotos
+// MMM-CloudPhotos
 //
-Module.register("MMM-GooglePhotos", {
+Module.register("MMM-CloudPhotos", {
   defaults: {
     albums: [],
     updateInterval: 1000 * 30, // minimum 10 seconds.
@@ -29,7 +29,7 @@ Module.register("MMM-GooglePhotos", {
   suspended: false,
 
   getStyles: function () {
-    return ["MMM-GooglePhotos.css"];
+    return ["MMM-CloudPhotos.css"];
   },
 
   start: function () {

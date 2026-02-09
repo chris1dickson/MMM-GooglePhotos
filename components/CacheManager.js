@@ -21,13 +21,13 @@ class CacheManager {
   /**
    * @param {Object} config - Configuration options
    * @param {Object} db - PhotoDatabase instance
-   * @param {Object} driveAPI - GDriveAPI instance
+   * @param {Object} photoProvider - Cloud storage provider instance (BaseProvider)
    * @param {Function} logger - Logging function
    */
-  constructor(config, db, driveAPI, logger = console.log) {
+  constructor(config, db, photoProvider, logger = console.log) {
     this.config = config;
     this.db = db;
-    this.drive = driveAPI;
+    this.provider = photoProvider;
     this.log = logger;
 
     this.isRunning = false;
@@ -137,7 +137,7 @@ class CacheManager {
         try {
           this.log(`[CACHE] Downloading photo ${photoId} (attempt ${attempt}/${maxRetries})...`);
 
-          const stream = await this.drive.downloadPhoto(photoId, { timeout: 30000 });
+          const stream = await this.provider.downloadPhoto(photoId, { timeout: 30000 });
 
           // BLOB mode: Process and store in database
           if (this.useBlobStorage) {

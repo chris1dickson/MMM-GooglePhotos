@@ -1,13 +1,21 @@
-# MMM-GooglePhotos
+# MMM-CloudPhotos
 
-Display your photos from **Google Drive folders** on [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror).
+Display your photos from **cloud storage providers** on [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror).
 
-## ⚠️ Important: V3 Uses Google Drive
+## ☁️ Multi-Provider Architecture
 
-**Google Photos API was deprecated by Google in March 2025.** This module now uses **Google Drive API**.
+**MMM-CloudPhotos** (formerly MMM-GooglePhotos) now supports multiple cloud storage providers.
 
-- **V3 (Current)**: Uses Google Drive folders - ✅ Stable and maintained
-- **V2 (Legacy)**: Used Google Photos albums - ❌ No longer works
+### Currently Supported
+
+- ✅ **Google Drive** - Display photos from Drive folders (fully supported)
+
+### Coming Soon
+
+- 🔄 **OneDrive** - Microsoft cloud storage
+- 🔄 **Dropbox** - Popular file hosting
+- 🔄 **iCloud Photos** - Apple's photo service
+- 🔄 **Local Filesystem** - Scan local folders
 
 ## Screenshots
 
@@ -31,8 +39,8 @@ Display your photos from **Google Drive folders** on [MagicMirror²](https://git
 
 ```bash
 cd ~/MagicMirror/modules
-git clone https://github.com/YOUR_USERNAME/MMM-GooglePhotos-fork.git MMM-GooglePhotos
-cd MMM-GooglePhotos
+git clone https://github.com/YOUR_USERNAME/MMM-CloudPhotos-fork.git MMM-CloudPhotos
+cd MMM-CloudPhotos
 npm install
 ```
 
@@ -49,7 +57,7 @@ npm install
 ### 3. Generate OAuth Token
 
 ```bash
-cd ~/MagicMirror/modules/MMM-GooglePhotos
+cd ~/MagicMirror/modules/MMM-CloudPhotos
 node generate_drive_token.js
 ```
 
@@ -79,7 +87,7 @@ Add this to your `config/config.js`:
 
 ```javascript
 {
-  module: "MMM-GooglePhotos",
+  module: "MMM-CloudPhotos",
   position: "fullscreen_below",
   config: {
     driveFolders: [
@@ -169,7 +177,7 @@ See [BLOB_STORAGE_GUIDE.md](BLOB_STORAGE_GUIDE.md) for complete details.
 
 ```javascript
 {
-  module: "MMM-GooglePhotos",
+  module: "MMM-CloudPhotos",
   position: "fullscreen_below",
   config: {
     driveFolders: [
@@ -183,7 +191,7 @@ See [BLOB_STORAGE_GUIDE.md](BLOB_STORAGE_GUIDE.md) for complete details.
 
 ```javascript
 {
-  module: "MMM-GooglePhotos",
+  module: "MMM-CloudPhotos",
   position: "fullscreen_below",
   config: {
     driveFolders: [
@@ -201,7 +209,7 @@ See [BLOB_STORAGE_GUIDE.md](BLOB_STORAGE_GUIDE.md) for complete details.
 
 ```javascript
 {
-  module: "MMM-GooglePhotos",
+  module: "MMM-CloudPhotos",
   position: "top_right",
   config: {
     driveFolders: [
@@ -220,7 +228,7 @@ See [BLOB_STORAGE_GUIDE.md](BLOB_STORAGE_GUIDE.md) for complete details.
 
 ```javascript
 {
-  module: "MMM-GooglePhotos",
+  module: "MMM-CloudPhotos",
   position: "fullscreen_below",
   config: {
     driveFolders: [
@@ -245,7 +253,7 @@ See [BLOB_STORAGE_GUIDE.md](BLOB_STORAGE_GUIDE.md) for complete details.
 
 Install Sharp for image processing:
 ```bash
-cd ~/MagicMirror/modules/MMM-GooglePhotos
+cd ~/MagicMirror/modules/MMM-CloudPhotos
 npm install sharp
 ```
 
@@ -370,7 +378,7 @@ Display shows photos every 60s (from cache)
 
 Regenerate token:
 ```bash
-cd ~/MagicMirror/modules/MMM-GooglePhotos
+cd ~/MagicMirror/modules/MMM-CloudPhotos
 rm token_drive.json
 node generate_drive_token.js
 ```
@@ -391,7 +399,7 @@ Verify:
 
 1. Increase `maxCacheSizeMB` if you have space
 2. Or reduce number of photos in Drive folders
-3. Check cache directory: `~/MagicMirror/modules/MMM-GooglePhotos/cache/`
+3. Check cache directory: `~/MagicMirror/modules/MMM-CloudPhotos/cache/`
 4. Clean old cache: `rm -rf cache/`
 
 ---
@@ -482,7 +490,7 @@ Add to `~/MagicMirror/css/custom.css`:
 
 4. **Clean old cache**:
    ```bash
-   cd ~/MagicMirror/modules/MMM-GooglePhotos
+   cd ~/MagicMirror/modules/MMM-CloudPhotos
    rm -rf cache/*
    pm2 restart MagicMirror
    ```
@@ -523,7 +531,7 @@ The module includes several test scripts for validation and development:
 #### 1. Comprehensive Test Suite
 
 ```bash
-cd ~/MagicMirror/modules/MMM-GooglePhotos
+cd ~/MagicMirror/modules/MMM-CloudPhotos
 node test_v3_standalone.js
 ```
 
@@ -544,7 +552,7 @@ node test_v3_standalone.js
 #### 2. Quick Test (Pre-configured)
 
 ```bash
-cd ~/MagicMirror/modules/MMM-GooglePhotos
+cd ~/MagicMirror/modules/MMM-CloudPhotos
 node quick-test.js
 ```
 
@@ -561,7 +569,7 @@ node quick-test.js
 #### 3. BLOB Storage Test
 
 ```bash
-cd ~/MagicMirror/modules/MMM-GooglePhotos
+cd ~/MagicMirror/modules/MMM-CloudPhotos
 npm install sharp  # Required for BLOB storage
 node test_blob_storage.js
 ```
@@ -575,7 +583,7 @@ node test_blob_storage.js
 #### 4. Jest Unit Tests
 
 ```bash
-cd ~/MagicMirror/modules/MMM-GooglePhotos
+cd ~/MagicMirror/modules/MMM-CloudPhotos
 npm install  # Install dev dependencies
 npm test     # Run all tests with coverage
 ```
@@ -694,7 +702,7 @@ MIT
 ## Support
 
 - Check the documentation above
-- Review [Issues](https://github.com/YOUR_USERNAME/MMM-GooglePhotos-fork/issues)
+- Review [Issues](https://github.com/YOUR_USERNAME/MMM-CloudPhotos-fork/issues)
 - For Google API questions, see [Google Drive API docs](https://developers.google.com/drive)
 
 ---

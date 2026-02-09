@@ -2,7 +2,7 @@
 
 ## Overview
 
-MMM-GooglePhotos V3 uses Sharp for automatic image processing (resizing and compression) and supports two storage modes:
+MMM-CloudPhotos V3 uses Sharp for automatic image processing (resizing and compression) and supports two storage modes:
 
 - **BLOB Storage**: Processed images stored in SQLite database
 - **File Storage**: Processed images saved to `cache/images/` folder
@@ -46,7 +46,7 @@ Add these options to your MagicMirror config:
 
 ```javascript
 {
-  module: "MMM-GooglePhotos",
+  module: "MMM-CloudPhotos",
   config: {
     // Drive folders
     driveFolders: [...],
@@ -223,7 +223,7 @@ Savings:        79% smaller
 ### 1. Install Sharp
 
 ```bash
-cd ~/MagicMirror/modules/MMM-GooglePhotos
+cd ~/MagicMirror/modules/MMM-CloudPhotos
 npm install sharp
 ```
 
@@ -374,8 +374,8 @@ Possible improvements:
 
 ## Support
 
-- GitHub Issues: [MMM-GooglePhotos](https://github.com/hermanho/MMM-GooglePhotos)
-- MagicMirror Forum: [MMM-GooglePhotos Thread](https://forum.magicmirror.builders)
+- GitHub Issues: [MMM-CloudPhotos](https://github.com/hermanho/MMM-CloudPhotos)
+- MagicMirror Forum: [MMM-CloudPhotos Thread](https://forum.magicmirror.builders)
 
 ---
 

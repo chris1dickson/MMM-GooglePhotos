@@ -1,7 +1,7 @@
 {
-  "name": "mmm-googlephotos",
-  "version": "2.1.8",
-  "description": "MagicMirror² module to display your photos from Google Photos",
+  "name": "mmm-cloudphotos",
+  "version": "3.0.0",
+  "description": "MagicMirror² module to display photos from cloud storage providers (Google Drive, OneDrive, Dropbox)",
   "license": "MIT",
   "author": "eouia0819@gmail.com",
   "contributors": [
@@ -21,7 +21,11 @@
   },
   "keywords": [
     "MagicMirror",
-    "GooglePhotos"
+    "CloudPhotos",
+    "GoogleDrive",
+    "OneDrive",
+    "Dropbox",
+    "PhotoFrame"
   ],
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
