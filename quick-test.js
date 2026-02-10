@@ -204,16 +204,26 @@ async function main() {
   const nextPhoto = await database.getNextPhoto();
   if (nextPhoto) {
     logSuccess(`Next photo to display: ${nextPhoto.filename}`);
-    logInfo(`  Path: ${nextPhoto.cached_path}`);
     logInfo(`  Size: ${nextPhoto.width}x${nextPhoto.height}`);
 
-    // Verify file exists
-    if (fs.existsSync(nextPhoto.cached_path)) {
-      const fileSize = fs.statSync(nextPhoto.cached_path).size;
-      logInfo(`  File size: ${(fileSize / 1024).toFixed(2)} KB`);
-      logSuccess("Photo file verified on disk");
+    // Verify cache (either BLOB or file-based)
+    if (nextPhoto.cached_data) {
+      // BLOB storage mode
+      const blobSize = nextPhoto.cached_data.length;
+      logInfo(`  Storage: BLOB (${(blobSize / 1024).toFixed(2)} KB)`);
+      logSuccess("Photo cached as BLOB in database");
+    } else if (nextPhoto.cached_path) {
+      // File storage mode
+      logInfo(`  Path: ${nextPhoto.cached_path}`);
+      if (fs.existsSync(nextPhoto.cached_path)) {
+        const fileSize = fs.statSync(nextPhoto.cached_path).size;
+        logInfo(`  File size: ${(fileSize / 1024).toFixed(2)} KB`);
+        logSuccess("Photo file verified on disk");
+      } else {
+        logError("Photo file not found on disk");
+      }
     } else {
-      logError("Photo file not found on disk");
+      logError("Photo is not cached (no BLOB data or file path)");
     }
   } else {
     logError("No photo available for display");

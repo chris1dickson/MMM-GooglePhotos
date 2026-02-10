@@ -26,30 +26,58 @@ const PhotoDatabase = require("./components/PhotoDatabase.js");
 const CacheManager = require("./components/CacheManager.js");
 
 // ============================================================
-// CONFIGURATION - EDIT THIS SECTION
+// CONFIGURATION - Load from test-config.json if available
 // ============================================================
 
-const CONFIG = {
-  // Your Google Drive folder ID (get from Drive URL)
-  driveFolders: [
-    {
-      id: "YOUR_GOOGLE_DRIVE_FOLDER_ID",
-      depth: -1                    // -1 = all subfolders
+let CONFIG;
+
+// Try to load configuration from test-config.json
+try {
+  if (fs.existsSync('./test-config.json')) {
+    CONFIG = JSON.parse(fs.readFileSync('./test-config.json', 'utf8'));
+
+    // Add default cache path if not specified
+    if (!CONFIG.cachePath) {
+      CONFIG.cachePath = path.resolve(__dirname, "cache", "images");
     }
-  ],
 
-  // OAuth credentials
-  keyFilePath: "./google_drive_auth.json",
-  tokenPath: "./token_drive.json",
+    // Add default test settings if not specified
+    if (!CONFIG.testDuration) {
+      CONFIG.testDuration = 120000;
+    }
+    if (!CONFIG.photoLimit) {
+      CONFIG.photoLimit = 10;
+    }
 
-  // Cache settings
-  cachePath: path.resolve(__dirname, "cache", "images"),
-  maxCacheSizeMB: 200,
+    console.log("✅ Loaded configuration from test-config.json");
+  } else {
+    throw new Error("test-config.json not found");
+  }
+} catch (error) {
+  // Fallback to hardcoded configuration
+  console.log("⚠️  Using default configuration (edit CONFIG in this file or create test-config.json)");
+  CONFIG = {
+    // Your Google Drive folder ID (get from Drive URL)
+    driveFolders: [
+      {
+        id: "YOUR_GOOGLE_DRIVE_FOLDER_ID",
+        depth: -1                    // -1 = all subfolders
+      }
+    ],
 
-  // Test settings
-  testDuration: 120000,  // Run for 2 minutes
-  photoLimit: 10         // Download only 10 photos for testing
-};
+    // OAuth credentials
+    keyFilePath: "./google_drive_auth.json",
+    tokenPath: "./token_drive.json",
+
+    // Cache settings
+    cachePath: path.resolve(__dirname, "cache", "images"),
+    maxCacheSizeMB: 200,
+
+    // Test settings
+    testDuration: 120000,  // Run for 2 minutes
+    photoLimit: 10         // Download only 10 photos for testing
+  };
+}
 
 // ============================================================
 // TEST SUITE
@@ -141,8 +169,9 @@ async function main() {
   // Check prerequisites
   suite.log("Checking prerequisites...");
 
-  if (CONFIG.driveFolders[0].id === "YOUR_FOLDER_ID_HERE") {
-    suite.log("❌ ERROR: Please edit CONFIG in test_v3_standalone.js", "ERROR");
+  if (CONFIG.driveFolders[0].id === "YOUR_FOLDER_ID_HERE" || CONFIG.driveFolders[0].id === "YOUR_GOOGLE_DRIVE_FOLDER_ID") {
+    suite.log("❌ ERROR: Please configure your Google Drive folder ID", "ERROR");
+    suite.log("Either edit test-config.json or CONFIG in test_v3_standalone.js", "ERROR");
     suite.log("Set your Google Drive folder ID (from Drive URL)", "ERROR");
     process.exit(1);
   }

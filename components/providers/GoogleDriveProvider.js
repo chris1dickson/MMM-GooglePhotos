@@ -332,6 +332,65 @@ class GoogleDriveProvider extends BaseProvider {
   }
 
   /**
+   * Convenience method for incremental sync with automatic token management
+   * This method wraps getChanges() and getStartPageToken() with database integration
+   * @returns {Promise<Array<Object>>} Array of changed/new photos
+   */
+  async scanForChanges() {
+    try {
+      if (!this.db) {
+        throw new Error("Database not set. Call setDatabase() before using scanForChanges().");
+      }
+
+      // Check if we have a change token from previous sync
+      const token = await this.db.getSetting("changes_token");
+
+      if (token) {
+        // Use incremental sync
+        this.log("[GDRIVE] Using incremental sync...");
+        const changes = await this.getChanges(token);
+
+        // Process deletions
+        if (changes.deletedIds.length > 0) {
+          this.log(`[GDRIVE] Processing ${changes.deletedIds.length} deletions...`);
+          for (const deletedId of changes.deletedIds) {
+            await this.db.deletePhoto(deletedId);
+          }
+        }
+
+        // Save new token for next sync
+        if (changes.nextToken) {
+          await this.db.saveSetting("changes_token", changes.nextToken);
+          this.log(`[GDRIVE] Saved new change token`);
+        }
+
+        return changes.photos;
+      } else {
+        // First run - do full scan and get start token
+        this.log("[GDRIVE] First run - doing full scan to establish baseline...");
+
+        const allPhotos = [];
+        const driveFolders = this.config.driveFolders || [];
+
+        for (const folderConfig of driveFolders) {
+          const photos = await this.scanFolder(folderConfig.id, folderConfig.depth);
+          allPhotos.push(...photos);
+        }
+
+        // Get start token for future incremental syncs
+        const startToken = await this.getStartPageToken();
+        await this.db.saveSetting("changes_token", startToken);
+        this.log(`[GDRIVE] Saved start token for future incremental syncs`);
+
+        return allPhotos;
+      }
+    } catch (error) {
+      this.log("[GDRIVE] scanForChanges failed:", error.message);
+      throw error;
+    }
+  }
+
+  /**
    * Check if a photo is in one of the monitored folders
    * @param {Object} file - File metadata from Drive API
    * @returns {Promise<boolean>}
