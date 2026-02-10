@@ -5,6 +5,7 @@ cache/*
 !cache/keep.txt
 .idea
 .DS_Store
+package-lock.json
 
 # V3 credential files
 google_drive_auth.json
