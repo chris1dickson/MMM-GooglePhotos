@@ -55,6 +55,11 @@
   z-index: 1;
 }
 
+#GPHOTO_BACK.animated {
+  animation-name: trans;
+  animation-duration: 2s;
+}
+
 #GPHOTO_INFO {
   position:absolute;
   top: var(--top);

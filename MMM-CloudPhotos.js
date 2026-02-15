@@ -171,6 +171,7 @@ Module.register("MMM-CloudPhotos", {
       current.textContent = "";
       back.style.backgroundImage = `url(${dataUrl})`;
       current.style.backgroundImage = `url(${dataUrl})`;
+      back.classList.add("animated");
       current.classList.add("animated");
 
       // Update info with metadata
@@ -302,6 +303,9 @@ Module.register("MMM-CloudPhotos", {
     }
     current.addEventListener("animationend", () => {
       current.classList.remove("animated");
+    });
+    back.addEventListener("animationend", () => {
+      back.classList.remove("animated");
     });
     let info = document.createElement("div");
     info.id = "GPHOTO_INFO";
