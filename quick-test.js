@@ -229,8 +229,53 @@ async function main() {
     logError("No photo available for display");
   }
 
-  // Test 9: Changes API (Incremental Scan)
-  logStep("9", "Testing Changes API (Incremental Scan)");
+  // Test 9: Metadata Validation (Location & Time)
+  logStep("9", "Validating Metadata (Location & Time)");
+
+  logInfo("Checking photo metadata from database...");
+  const photoWithMetadata = await database.db.get(`
+    SELECT filename, creation_time, latitude, longitude, location_name
+    FROM photos
+    WHERE id = ?
+  `, [nextPhoto.id]);
+
+  if (photoWithMetadata) {
+    log("\n📋 Metadata for: " + photoWithMetadata.filename, 'cyan');
+
+    // Check creation time
+    if (photoWithMetadata.creation_time) {
+      const date = new Date(photoWithMetadata.creation_time);
+      logSuccess(`  ✓ Creation Time: ${date.toISOString()}`);
+    } else {
+      logInfo(`  ⚠ Creation Time: Not available`);
+    }
+
+    // Check location
+    if (photoWithMetadata.latitude && photoWithMetadata.longitude) {
+      logSuccess(`  ✓ Coordinates: ${photoWithMetadata.latitude.toFixed(4)}, ${photoWithMetadata.longitude.toFixed(4)}`);
+
+      if (photoWithMetadata.location_name) {
+        logSuccess(`  ✓ Location Name: ${photoWithMetadata.location_name}`);
+      } else {
+        logInfo(`  ⚠ Location Name: Not geocoded yet (will resolve during caching)`);
+      }
+    } else {
+      logInfo(`  ⚠ GPS Location: Not available in photo EXIF data`);
+    }
+
+    // Check if original photo had location metadata
+    const originalPhoto = photos.find(p => p.id === nextPhoto.id);
+    if (originalPhoto?.imageMediaMetadata?.location) {
+      logSuccess(`  ✓ Original photo has GPS data in imageMediaMetadata`);
+    } else {
+      logInfo(`  ℹ Original photo does not contain GPS EXIF data`);
+    }
+  } else {
+    logError("Could not retrieve metadata from database");
+  }
+
+  // Test 10: Changes API (Incremental Scan)
+  logStep("10", "Testing Changes API (Incremental Scan)");
 
   logInfo("Running first scan to get change token...");
   const changedPhotos1 = await driveAPI.scanForChanges();

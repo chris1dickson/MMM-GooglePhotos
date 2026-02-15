@@ -351,7 +351,9 @@ const NodeHelperObject = {
         image: imageBuffer.toString("base64"),
         filename: photo.filename,
         width: photo.width,
-        height: photo.height
+        height: photo.height,
+        creation_time: photo.creation_time,
+        location_name: photo.location_name
       });
 
       // Mark as viewed (fire-and-forget)

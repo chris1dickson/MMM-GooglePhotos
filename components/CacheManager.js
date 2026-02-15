@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { finished } = require("stream/promises");
 const { Readable } = require("stream");
+const fetch = require("node-fetch");
 
 // Optional: Sharp for image processing (install with: npm install sharp)
 let sharp = null;
@@ -41,6 +42,9 @@ class CacheManager {
     this.screenWidth = config.showWidth || 1920;
     this.screenHeight = config.showHeight || 1080;
     this.jpegQuality = config.jpegQuality || 85;
+
+    // Geocoding cache
+    this.geocodeCache = {};
 
     // Start the tick timer
     this.timer = setInterval(() => this.tick(), this.tickInterval);
@@ -180,6 +184,10 @@ class CacheManager {
             this.log(`[CACHE] Saved ${photoId}: ${(originalBuffer.length / 1024).toFixed(2)}KB → ${(processedBuffer.length / 1024).toFixed(2)}KB`);
 
             await this.db.updatePhotoCache(photoId, filePath, processedBuffer.length);
+
+            // Perform reverse geocoding if photo has location data (fire and forget)
+            this.reverseGeocodePhoto(photoId).catch(() => {});
+
             return { success: true, photoId, size: processedBuffer.length };
 
           } else {
@@ -191,6 +199,9 @@ class CacheManager {
             await this.db.updatePhotoCache(photoId, filePath, stats.size);
 
             this.log(`[CACHE] Downloaded ${photoId} (${(stats.size / 1024).toFixed(2)}KB) - no resizing (Sharp not available)`);
+
+            // Perform reverse geocoding if photo has location data (fire and forget)
+            this.reverseGeocodePhoto(photoId).catch(() => {});
 
             return { success: true, photoId, size: stats.size };
           }
@@ -245,6 +256,9 @@ class CacheManager {
       await this.db.updatePhotoCacheBlob(photoId, processedBuffer, 'image/jpeg');
 
       this.log(`[CACHE] Stored BLOB ${photoId}: ${(originalBuffer.length / 1024).toFixed(2)}KB → ${(processedBuffer.length / 1024).toFixed(2)}KB`);
+
+      // Perform reverse geocoding if photo has location data (fire and forget)
+      this.reverseGeocodePhoto(photoId).catch(() => {});
 
       return { success: true, photoId, size: processedBuffer.length };
 
@@ -369,6 +383,97 @@ class CacheManager {
   resetFailureCounter() {
     this.log("[CACHE] Resetting failure counter");
     this.consecutiveFailures = 0;
+  }
+
+  /**
+   * Reverse geocode a photo's location
+   * @param {string} photoId - Photo ID
+   * @returns {Promise<void>}
+   */
+  async reverseGeocodePhoto(photoId) {
+    try {
+      // Get photo metadata from database
+      const photo = await this.db.db.get(
+        "SELECT latitude, longitude FROM photos WHERE id = ?",
+        [photoId]
+      );
+
+      if (!photo || photo.latitude == null || photo.longitude == null) {
+        // No location data, nothing to geocode
+        return;
+      }
+
+      const { latitude, longitude } = photo;
+      const cacheKey = `${latitude.toFixed(2)},${longitude.toFixed(2)}`; // Round to ~1km precision
+
+      // Check cache first
+      if (this.geocodeCache[cacheKey]) {
+        await this.db.updateLocationName(photoId, this.geocodeCache[cacheKey]);
+        this.log(`[GEOCODE] Cached location for ${photoId}: ${this.geocodeCache[cacheKey]}`);
+        return;
+      }
+
+      // Perform API request with timeout
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=14`;
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'MMM-CloudPhotos'
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        this.log(`[GEOCODE] API error for ${photoId}: ${response.status}`);
+        return;
+      }
+
+      const data = await response.json();
+
+      if (data && data.address) {
+        // Build location string from most to least specific
+        const parts = [];
+
+        if (data.address.city) {
+          parts.push(data.address.city);
+        } else if (data.address.town) {
+          parts.push(data.address.town);
+        } else if (data.address.village) {
+          parts.push(data.address.village);
+        }
+
+        if (data.address.state) {
+          parts.push(data.address.state);
+        }
+
+        if (data.address.country) {
+          parts.push(data.address.country);
+        }
+
+        const locationName = parts.join(", ");
+
+        if (locationName) {
+          // Update database and cache
+          await this.db.updateLocationName(photoId, locationName);
+          this.geocodeCache[cacheKey] = locationName;
+          this.log(`[GEOCODE] Resolved ${photoId}: ${locationName}`);
+        }
+      }
+
+      // Respect Nominatim usage policy: max 1 request per second
+      await this.sleep(1000);
+
+    } catch (error) {
+      // Silently fail - geocoding is non-critical
+      if (error.name !== 'AbortError') {
+        this.log(`[GEOCODE] Failed for ${photoId}:`, error.message);
+      }
+    }
   }
 
   /**

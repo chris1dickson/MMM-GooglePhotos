@@ -16,3 +16,6 @@ test-config.json
 # Test outputs
 test_v3_standalone.output
 coverage/
+
+# Claude Code
+.claude/

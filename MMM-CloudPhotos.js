@@ -173,10 +173,46 @@ Module.register("MMM-CloudPhotos", {
       current.style.backgroundImage = `url(${dataUrl})`;
       current.classList.add("animated");
 
-      // Update info with filename
+      // Update info with metadata
       const info = document.getElementById("GPHOTO_INFO");
       if (info) {
-        info.innerHTML = photo.filename || "";
+        info.innerHTML = "";
+
+        // Create info elements
+        let infoText = document.createElement("div");
+        infoText.classList.add("infoText");
+
+        // Check if we have any metadata to display
+        const hasMetadata = photo.creation_time || photo.location_name;
+
+        // Add photo time
+        if (photo.creation_time) {
+          let photoTime = document.createElement("div");
+          photoTime.classList.add("photoTime");
+          const timestamp = new Date(photo.creation_time);
+          photoTime.innerHTML = this.config.timeFormat === "relative"
+            ? moment(timestamp).fromNow()
+            : moment(timestamp).format(this.config.timeFormat);
+          infoText.appendChild(photoTime);
+        }
+
+        // Add location (pre-resolved from backend)
+        if (photo.location_name) {
+          let location = document.createElement("div");
+          location.classList.add("photoLocation");
+          location.innerHTML = `📍 ${photo.location_name}`;
+          infoText.appendChild(location);
+        }
+
+        // Fallback to filename if no metadata available
+        if (!hasMetadata && photo.filename) {
+          let filename = document.createElement("div");
+          filename.classList.add("photoFilename");
+          filename.innerHTML = photo.filename;
+          infoText.appendChild(filename);
+        }
+
+        info.appendChild(infoText);
       }
 
       // Notify backend

@@ -114,6 +114,12 @@ class PhotoDatabase {
           width INTEGER,
           height INTEGER,
 
+          -- Location data (from EXIF/GPS)
+          latitude REAL,
+          longitude REAL,
+          altitude REAL,
+          location_name TEXT,
+
           -- Simple view tracking (no analytics)
           last_viewed_at INTEGER,
 
@@ -168,16 +174,24 @@ class PhotoDatabase {
       const height = photo.imageMediaMetadata?.height || null;
       const folderId = photo.parents?.[0] || "root";
 
+      // Extract location data if available
+      const latitude = photo.imageMediaMetadata?.location?.latitude || null;
+      const longitude = photo.imageMediaMetadata?.location?.longitude || null;
+      const altitude = photo.imageMediaMetadata?.location?.altitude || null;
+
       await this.db.run(`
-        INSERT INTO photos (id, folder_id, filename, creation_time, width, height)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO photos (id, folder_id, filename, creation_time, width, height, latitude, longitude, altitude)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
           folder_id = excluded.folder_id,
           filename = excluded.filename,
           creation_time = excluded.creation_time,
           width = excluded.width,
-          height = excluded.height
-      `, [photo.id, folderId, photo.name, creationTime, width, height]);
+          height = excluded.height,
+          latitude = excluded.latitude,
+          longitude = excluded.longitude,
+          altitude = excluded.altitude
+      `, [photo.id, folderId, photo.name, creationTime, width, height, latitude, longitude, altitude]);
 
     } catch (error) {
       this.log(`[DB] Error saving photo ${photo.id}:`, error.message);
@@ -260,7 +274,7 @@ class PhotoDatabase {
       }
 
       const photo = await this.db.get(`
-        SELECT id, cached_path, cached_data, filename, width, height, creation_time
+        SELECT id, cached_path, cached_data, filename, width, height, creation_time, latitude, longitude, altitude, location_name
         FROM photos
         WHERE (cached_data IS NOT NULL OR cached_path IS NOT NULL)
         ORDER BY ${orderBy}
@@ -289,6 +303,25 @@ class PhotoDatabase {
 
     } catch (error) {
       this.log(`[DB] Error marking photo viewed ${photoId}:`, error.message);
+      // Don't throw - this is non-critical
+    }
+  }
+
+  /**
+   * Update location name for a photo
+   * @param {string} photoId - Photo ID
+   * @param {string} locationName - Resolved location name
+   * @returns {Promise<void>}
+   */
+  async updateLocationName(photoId, locationName) {
+    try {
+      await this.db.run(
+        "UPDATE photos SET location_name = ? WHERE id = ?",
+        [locationName, photoId]
+      );
+
+    } catch (error) {
+      this.log(`[DB] Error updating location name ${photoId}:`, error.message);
       // Don't throw - this is non-critical
     }
   }
