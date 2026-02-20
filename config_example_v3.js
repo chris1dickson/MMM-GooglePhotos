@@ -48,6 +48,17 @@
     scanInterval: 1000 * 60 * 60 * 6,  // 6 hours in milliseconds
 
     // ===========================================
+    // NEW in V3: Offline Mode & Authentication Retry
+    // ===========================================
+    // Maximum authentication retry attempts (default: Infinity)
+    // Set to a number to limit retries, or Infinity to retry forever
+    maxAuthRetries: Infinity,
+
+    // Maximum backoff time between authentication retries (default: 120000ms = 2 minutes)
+    // Retry backoff starts at 5s and doubles each attempt up to this maximum
+    maxAuthBackoffMs: 120000,  // 2 minutes
+
+    // ===========================================
     // NEW in V3: Photo Sort Mode
     // ===========================================
     // How to order photos for display

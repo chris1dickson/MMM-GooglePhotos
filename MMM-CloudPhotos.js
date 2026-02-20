@@ -17,6 +17,8 @@ Module.register("MMM-CloudPhotos", {
   },
 
   start: function () {
+    this.connectionStatus = "initializing"; // initializing, online, offline, retrying, error
+    this.statusMessage = "Loading...";
     this.sendSocketNotification("INIT", this.config);
   },
 
@@ -34,10 +36,57 @@ Module.register("MMM-CloudPhotos", {
       errMsgDiv.style.verticalAlign = "middle";
       errMsgDiv.textContent = payload.message || payload;
       current.appendChild(errMsgDiv);
+      this.connectionStatus = "error";
+      this.statusMessage = payload.message || payload;
+      this.updateConnectionStatus();
     }
     if (noti === "UPDATE_STATUS") {
-      let info = document.getElementById("GPHOTO_INFO");
-      info.innerHTML = String(payload);
+      this.statusMessage = String(payload);
+      this.parseConnectionStatus(payload);
+      this.updateConnectionStatus();
+    }
+    if (noti === "CONNECTION_STATUS") {
+      this.connectionStatus = payload.status;
+      this.statusMessage = payload.message;
+      this.updateConnectionStatus();
+    }
+  },
+
+  parseConnectionStatus: function (message) {
+    // Parse status message to determine connection state
+    const msg = String(message).toLowerCase();
+    if (msg.includes("offline") || msg.includes("retrying") || msg.includes("retry")) {
+      this.connectionStatus = "offline";
+    } else if (msg.includes("scanning") || msg.includes("syncing") || msg.includes("connected")) {
+      this.connectionStatus = "online";
+    } else if (msg.includes("photos available") || msg.includes("found")) {
+      this.connectionStatus = "online";
+    } else if (msg.includes("loading") || msg.includes("initializing")) {
+      this.connectionStatus = "initializing";
+    }
+  },
+
+  updateConnectionStatus: function () {
+    const statusDiv = document.getElementById("GPHOTO_CONNECTION_STATUS");
+    if (statusDiv) {
+      statusDiv.className = `connectionStatus status-${this.connectionStatus}`;
+      statusDiv.innerHTML = this.getStatusIcon() + " " + this.statusMessage;
+    }
+  },
+
+  getStatusIcon: function () {
+    switch (this.connectionStatus) {
+      case "online":
+        return "☁";
+      case "offline":
+        return "⚠";
+      case "retrying":
+        return "🔄";
+      case "error":
+        return "✖";
+      case "initializing":
+      default:
+        return "⋯";
     }
   },
 
@@ -65,6 +114,13 @@ Module.register("MMM-CloudPhotos", {
         // Create info elements
         let infoText = document.createElement("div");
         infoText.classList.add("infoText");
+
+        // Add connection status
+        let statusDiv = document.createElement("div");
+        statusDiv.id = "GPHOTO_CONNECTION_STATUS";
+        statusDiv.className = `connectionStatus status-${this.connectionStatus}`;
+        statusDiv.innerHTML = this.getStatusIcon() + " " + this.statusMessage;
+        infoText.appendChild(statusDiv);
 
         // Check if we have BOTH metadata fields
         const hasBothMetadata = photo.creation_time && photo.location_name;

@@ -112,3 +112,30 @@
   line-height:100%;
   color:#FFF;
 }
+
+#GPHOTO_INFO .connectionStatus {
+  font-size: 14px;
+  padding: 4px 0;
+  margin-bottom: 6px;
+  opacity: 0.9;
+}
+
+#GPHOTO_INFO .status-online {
+  color: #8F8;
+}
+
+#GPHOTO_INFO .status-offline {
+  color: #FF8;
+}
+
+#GPHOTO_INFO .status-retrying {
+  color: #F8F;
+}
+
+#GPHOTO_INFO .status-error {
+  color: #F88;
+}
+
+#GPHOTO_INFO .status-initializing {
+  color: #AAA;
+}

@@ -81,7 +81,13 @@ class CacheManager {
         await this.evictOldest(10);
       }
 
-      // Step 3: Graceful degradation - skip downloads if offline
+      // Step 3: Skip downloads if provider not available
+      if (!this.provider) {
+        this.log("[CACHE] Provider not initialized - skipping downloads (offline mode)");
+        return;
+      }
+
+      // Step 4: Graceful degradation - skip downloads if offline
       if (this.consecutiveFailures > 3) {
         this.log(`[CACHE] Offline detected (${this.consecutiveFailures} consecutive failures) - skipping downloads`);
         await this.sleep(60000); // Wait 1 minute before retry
@@ -89,7 +95,7 @@ class CacheManager {
         return;
       }
 
-      // Step 4: Download next batch (FIXED: 5 photos)
+      // Step 5: Download next batch (FIXED: 5 photos)
       const photos = await this.db.getPhotosToCache(5);
 
       if (photos.length === 0) {
@@ -99,7 +105,7 @@ class CacheManager {
 
       this.log(`[CACHE] Downloading batch of ${photos.length} photos...`);
 
-      // Step 5: Batch download with failure tracking
+      // Step 6: Batch download with failure tracking
       const results = await Promise.allSettled(
         photos.map(p => this.downloadPhoto(p.id))
       );
@@ -136,6 +142,11 @@ class CacheManager {
    */
   async downloadPhoto(photoId, maxRetries = 3) {
     try {
+      // Check if provider is available
+      if (!this.provider) {
+        throw new Error("Provider not initialized - offline mode");
+      }
+
       // Retry loop with exponential backoff
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {

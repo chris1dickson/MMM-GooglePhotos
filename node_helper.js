@@ -29,6 +29,13 @@ const NodeHelperObject = {
     // Timers
     this.scanTimer = null;
     this.displayTimer = null;
+    this.authRetryTimer = null;
+
+    // Authentication retry state
+    this.authRetryAttempts = 0;
+    this.maxAuthRetries = Infinity; // Will be set from config during initialize
+    this.maxBackoffMs = 120000; // Will be set from config during initialize
+    this.providerInitialized = false;
 
     // Paths
     this.dbPath = path.resolve(this.path, "cache", "photos.db");
@@ -93,6 +100,10 @@ const NodeHelperObject = {
       this.log_info("Initializing MMM-CloudPhotos V3...");
       this.config = config;
 
+      // Configure authentication retry behavior
+      this.maxAuthRetries = config.maxAuthRetries !== undefined ? config.maxAuthRetries : Infinity;
+      this.maxBackoffMs = config.maxAuthBackoffMs || 120000; // Default: 2 minutes
+
       // Ensure cache directories exist
       await fs.promises.mkdir(this.cachePath, { recursive: true });
 
@@ -107,25 +118,10 @@ const NodeHelperObject = {
       );
       await this.database.initialize();
 
-      // Initialize cloud storage provider
-      const providerName = config.provider || "google-drive";
-      const providerConfig = config.providerConfig || {
-        keyFilePath: config.keyFilePath || "./google_drive_auth.json",
-        tokenPath: config.tokenPath || "./token_drive.json",
-        driveFolders: config.driveFolders || []
-      };
+      // Initialize cloud storage provider with retry
+      await this.initializeProvider();
 
-      this.log_info(`Initializing cloud provider: ${providerName}...`);
-      this.photoProvider = createProvider(providerName, providerConfig, this.log_info.bind(this));
-
-      // Set database reference for providers that support incremental sync
-      if (typeof this.photoProvider.setDatabase === 'function') {
-        this.photoProvider.setDatabase(this.database);
-      }
-
-      await this.photoProvider.initialize();
-
-      // Initialize cache manager
+      // Initialize cache manager (even if provider failed - for offline mode)
       this.log_info("Initializing cache manager...");
       this.cacheManager = new CacheManager(
         {
@@ -144,13 +140,29 @@ const NodeHelperObject = {
       this.initialized = true;
       this.log_info("✅ Initialization complete!");
 
-      // Start initial scan
-      await this.performInitialScan();
+      // Check if we have cached photos
+      const cachedCount = await this.database.getCachedPhotoCount();
+      if (cachedCount > 0) {
+        this.log_info(`Found ${cachedCount} cached photos - ready to display`);
+      }
 
-      // Start periodic scanning
-      this.startPeriodicScanning();
+      // Start initial scan (only if provider initialized)
+      if (this.providerInitialized) {
+        this.sendSocketNotification("CONNECTION_STATUS", {
+          status: "online",
+          message: `Online - ${cachedCount} photos available`
+        });
+        await this.performInitialScan();
+        this.startPeriodicScanning();
+      } else {
+        this.log_warn("Provider not initialized - running in offline mode");
+        this.sendSocketNotification("CONNECTION_STATUS", {
+          status: "offline",
+          message: `Offline - ${cachedCount} cached photos`
+        });
+      }
 
-      // Start display timer
+      // Always start display timer (show cached photos)
       this.startDisplayTimer();
 
     } catch (error) {
@@ -160,6 +172,122 @@ const NodeHelperObject = {
         message: `Initialization failed: ${error.message}`,
         details: error.stack
       });
+    }
+  },
+
+  /**
+   * Initialize cloud provider with retry logic
+   */
+  initializeProvider: async function () {
+    const providerName = this.config.provider || "google-drive";
+    const providerConfig = this.config.providerConfig || {
+      keyFilePath: this.config.keyFilePath || "./google_drive_auth.json",
+      tokenPath: this.config.tokenPath || "./token_drive.json",
+      driveFolders: this.config.driveFolders || []
+    };
+
+    this.log_info(`Initializing cloud provider: ${providerName}...`);
+    this.photoProvider = createProvider(providerName, providerConfig, this.log_info.bind(this));
+
+    // Set database reference for providers that support incremental sync
+    if (typeof this.photoProvider.setDatabase === 'function') {
+      this.photoProvider.setDatabase(this.database);
+    }
+
+    // Try to initialize with immediate attempt
+    try {
+      await this.photoProvider.initialize();
+      this.providerInitialized = true;
+      this.authRetryAttempts = 0;
+      this.log_info(`✅ Provider ${providerName} initialized successfully`);
+      return;
+    } catch (error) {
+      this.log_warn(`Provider initialization failed: ${error.message}`);
+      this.log_info("Will retry in background with exponential backoff");
+      this.providerInitialized = false;
+
+      // Start background retry
+      this.scheduleProviderRetry();
+    }
+  },
+
+  /**
+   * Schedule provider initialization retry with exponential backoff
+   */
+  scheduleProviderRetry: function () {
+    // Clear any existing retry timer
+    if (this.authRetryTimer) {
+      clearTimeout(this.authRetryTimer);
+      this.authRetryTimer = null;
+    }
+
+    // Check if we've exceeded max retries
+    if (this.authRetryAttempts >= this.maxAuthRetries) {
+      this.log_error(`Maximum authentication retries (${this.maxAuthRetries}) reached. Staying in offline mode.`);
+      this.sendSocketNotification("UPDATE_STATUS", "Offline - max retries exceeded");
+      return;
+    }
+
+    this.authRetryAttempts++;
+
+    // Calculate backoff: 5s, 10s, 20s, 40s, 80s, 120s, 120s, ... (capped at maxBackoffMs)
+    const backoffMs = Math.min(5000 * Math.pow(2, this.authRetryAttempts - 1), this.maxBackoffMs);
+
+    const maxRetriesMsg = this.maxAuthRetries === Infinity ? '∞' : this.maxAuthRetries;
+    this.log_info(`Scheduling authentication retry #${this.authRetryAttempts}/${maxRetriesMsg} in ${backoffMs / 1000}s`);
+
+    // Update frontend with retry status
+    this.sendSocketNotification("CONNECTION_STATUS", {
+      status: "offline",
+      message: `Offline - retrying in ${Math.ceil(backoffMs / 1000)}s`
+    });
+
+    this.authRetryTimer = setTimeout(async () => {
+      await this.retryProviderInitialization();
+    }, backoffMs);
+  },
+
+  /**
+   * Retry provider initialization
+   */
+  retryProviderInitialization: async function () {
+    if (this.providerInitialized) {
+      this.log_info("Provider already initialized, skipping retry");
+      return;
+    }
+
+    const maxRetriesMsg = this.maxAuthRetries === Infinity ? '∞' : this.maxAuthRetries;
+    this.log_info(`Retrying provider initialization (attempt ${this.authRetryAttempts}/${maxRetriesMsg})...`);
+
+    // Update frontend with retrying status
+    this.sendSocketNotification("CONNECTION_STATUS", {
+      status: "retrying",
+      message: `Reconnecting (attempt ${this.authRetryAttempts})...`
+    });
+
+    try {
+      await this.photoProvider.initialize();
+      this.providerInitialized = true;
+      this.authRetryAttempts = 0;
+
+      this.log_info("✅ Provider initialized successfully after retry!");
+
+      // Update frontend with success
+      const cachedCount = await this.database.getCachedPhotoCount();
+      this.sendSocketNotification("CONNECTION_STATUS", {
+        status: "online",
+        message: `Connected - syncing photos...`
+      });
+
+      // Now that we're online, start scanning and periodic sync
+      await this.performInitialScan();
+      this.startPeriodicScanning();
+
+    } catch (error) {
+      this.log_warn(`Retry ${this.authRetryAttempts} failed: ${error.message}`);
+
+      // Schedule next retry
+      this.scheduleProviderRetry();
     }
   },
 
@@ -224,15 +352,42 @@ const NodeHelperObject = {
         const cachedCount = await this.database.getCachedPhotoCount();
 
         this.log_info(`Database now has ${totalCount} photos (${cachedCount} cached)`);
-        this.sendSocketNotification("UPDATE_STATUS", `Found ${totalCount} photos`);
+        this.sendSocketNotification("CONNECTION_STATUS", {
+          status: "online",
+          message: `Online - ${totalCount} photos`
+        });
       } else {
         this.log_warn("No photos found in configured folders");
-        this.sendSocketNotification("UPDATE_STATUS", "No photos found");
+        this.sendSocketNotification("CONNECTION_STATUS", {
+          status: "online",
+          message: "Online - no photos found"
+        });
       }
 
     } catch (error) {
       this.log_error("Initial scan failed:", error.message);
-      this.sendSocketNotification("ERROR", `Scan failed: ${error.message}`);
+
+      // Check if this is a network error
+      if (this.isNetworkError(error)) {
+        this.log_warn("Network error during initial scan - marking provider as offline");
+
+        // Mark provider as offline
+        this.providerInitialized = false;
+
+        // Update frontend status
+        const cachedCount = await this.database.getCachedPhotoCount();
+        this.sendSocketNotification("CONNECTION_STATUS", {
+          status: "offline",
+          message: `Offline - ${cachedCount} cached photos`
+        });
+
+        // Start retry mechanism
+        this.authRetryAttempts = 0;
+        this.scheduleProviderRetry();
+      } else {
+        // Non-network error - notify user
+        this.sendSocketNotification("ERROR", `Scan failed: ${error.message}`);
+      }
     }
   },
 
@@ -240,12 +395,24 @@ const NodeHelperObject = {
    * Start periodic scanning for new photos
    */
   startPeriodicScanning: function () {
+    // Don't start if already running
+    if (this.scanTimer) {
+      this.log_warn("Periodic scanning already running");
+      return;
+    }
+
     const scanInterval = this.config.scanInterval || (6 * 60 * 60 * 1000); // Default: 6 hours
 
     this.log_info(`Setting up periodic scan every ${scanInterval / 1000 / 60} minutes`);
 
     this.scanTimer = setInterval(async () => {
       try {
+        // Skip if provider not initialized
+        if (!this.providerInitialized) {
+          this.log_info("Periodic scan skipped - provider not initialized (offline mode)");
+          return;
+        }
+
         this.log_info("Running periodic scan...");
 
         let photos = [];
@@ -284,6 +451,25 @@ const NodeHelperObject = {
 
       } catch (error) {
         this.log_error("Periodic scan failed:", error.message);
+
+        // Check if this is a network/authentication error
+        if (this.isNetworkError(error)) {
+          this.log_warn("Network error detected - marking provider as offline and starting retry");
+
+          // Mark provider as offline
+          this.providerInitialized = false;
+
+          // Update frontend status
+          const cachedCount = await this.database.getCachedPhotoCount();
+          this.sendSocketNotification("CONNECTION_STATUS", {
+            status: "offline",
+            message: `Offline - ${cachedCount} cached photos`
+          });
+
+          // Start retry mechanism
+          this.authRetryAttempts = 0; // Reset counter for fresh start
+          this.scheduleProviderRetry();
+        }
       }
     }, scanInterval);
   },
@@ -377,6 +563,33 @@ const NodeHelperObject = {
   },
 
   /**
+   * Check if an error is network-related
+   * @param {Error} error - Error to check
+   * @returns {boolean} True if network error
+   */
+  isNetworkError: function (error) {
+    if (!error) return false;
+
+    const message = error.message ? error.message.toLowerCase() : '';
+    const code = error.code ? error.code.toUpperCase() : '';
+
+    // Network error codes
+    const networkCodes = [
+      'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN',
+      'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH'
+    ];
+
+    // Network error messages
+    const networkMessages = [
+      'network', 'offline', 'timeout', 'connection',
+      'authentication failed', 'auth', 'token', 'access denied'
+    ];
+
+    return networkCodes.includes(code) ||
+           networkMessages.some(msg => message.includes(msg));
+  },
+
+  /**
    * Stop the module
    */
   stop: function () {
@@ -391,6 +604,11 @@ const NodeHelperObject = {
     if (this.displayTimer) {
       clearInterval(this.displayTimer);
       this.displayTimer = null;
+    }
+
+    if (this.authRetryTimer) {
+      clearTimeout(this.authRetryTimer);
+      this.authRetryTimer = null;
     }
 
     // Stop cache manager
