@@ -36,6 +36,7 @@ const NodeHelperObject = {
     this.maxAuthRetries = Infinity; // Will be set from config during initialize
     this.maxBackoffMs = 120000; // Will be set from config during initialize
     this.providerInitialized = false;
+    this.isRetryScheduled = false; // Prevent duplicate retry scheduling
 
     // Paths
     this.dbPath = path.resolve(this.path, "cache", "photos.db");
@@ -133,7 +134,7 @@ const NodeHelperObject = {
           useBlobStorage: config.useBlobStorage
         },
         this.database,
-        this.photoProvider,
+        () => this.photoProvider, // Use getter to prevent stale provider reference
         this.log_info.bind(this)
       );
 
@@ -215,6 +216,13 @@ const NodeHelperObject = {
    * Schedule provider initialization retry with exponential backoff
    */
   scheduleProviderRetry: function () {
+    // Prevent race condition - only one retry can be scheduled at a time
+    if (this.isRetryScheduled) {
+      this.log_debug("Retry already scheduled, ignoring duplicate request");
+      return;
+    }
+    this.isRetryScheduled = true;
+
     // Clear any existing retry timer
     if (this.authRetryTimer) {
       clearTimeout(this.authRetryTimer);
@@ -225,6 +233,7 @@ const NodeHelperObject = {
     if (this.authRetryAttempts >= this.maxAuthRetries) {
       this.log_error(`Maximum authentication retries (${this.maxAuthRetries}) reached. Staying in offline mode.`);
       this.sendSocketNotification("UPDATE_STATUS", "Offline - max retries exceeded");
+      this.isRetryScheduled = false; // Clear flag
       return;
     }
 
@@ -243,6 +252,7 @@ const NodeHelperObject = {
     });
 
     this.authRetryTimer = setTimeout(async () => {
+      this.isRetryScheduled = false; // Clear flag before retry
       await this.retryProviderInitialization();
     }, backoffMs);
   },
@@ -563,9 +573,9 @@ const NodeHelperObject = {
   },
 
   /**
-   * Check if an error is network-related
+   * Check if an error is network-related (transient, retryable)
    * @param {Error} error - Error to check
-   * @returns {boolean} True if network error
+   * @returns {boolean} True if transient network error (should retry)
    */
   isNetworkError: function (error) {
     if (!error) return false;
@@ -573,16 +583,32 @@ const NodeHelperObject = {
     const message = error.message ? error.message.toLowerCase() : '';
     const code = error.code ? error.code.toUpperCase() : '';
 
-    // Network error codes
-    const networkCodes = [
-      'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN',
-      'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH'
+    // Permanent errors - do NOT retry
+    const permanentPatterns = [
+      'invalid_grant',      // OAuth token permanently revoked
+      'permission denied',  // Insufficient permissions
+      'folder not found',   // Invalid folder ID
+      'invalid folder',     // Invalid configuration
+      '403 forbidden'       // Permanent access denial
     ];
 
-    // Network error messages
+    // Check for permanent errors first
+    if (permanentPatterns.some(pattern => message.includes(pattern))) {
+      this.log_warn(`Permanent error detected: ${error.message}`);
+      return false; // Not retryable
+    }
+
+    // Transient network error codes
+    const networkCodes = [
+      'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN',
+      'ECONNREFUSED', 'ENETUNREACH', 'EHOSTUNREACH',
+      'EHOSTDOWN', 'ENETDOWN', 'EPIPE'
+    ];
+
+    // Transient network error messages
     const networkMessages = [
       'network', 'offline', 'timeout', 'connection',
-      'authentication failed', 'auth', 'token', 'access denied'
+      'authentication failed', 'auth', 'token expired', 'enotfound'
     ];
 
     return networkCodes.includes(code) ||

@@ -22,13 +22,22 @@ class CacheManager {
   /**
    * @param {Object} config - Configuration options
    * @param {Object} db - PhotoDatabase instance
-   * @param {Object} photoProvider - Cloud storage provider instance (BaseProvider)
+   * @param {Function|Object} photoProviderOrGetter - Cloud storage provider instance OR getter function that returns provider
    * @param {Function} logger - Logging function
    */
-  constructor(config, db, photoProvider, logger = console.log) {
+  constructor(config, db, photoProviderOrGetter, logger = console.log) {
     this.config = config;
     this.db = db;
-    this.provider = photoProvider;
+
+    // Support getter pattern to prevent stale provider references
+    if (typeof photoProviderOrGetter === 'function') {
+      this.getProvider = photoProviderOrGetter; // Getter function
+    } else {
+      // Legacy: direct provider instance (for backward compatibility)
+      const directProvider = photoProviderOrGetter;
+      this.getProvider = () => directProvider;
+    }
+
     this.log = logger;
 
     this.isRunning = false;
@@ -82,7 +91,8 @@ class CacheManager {
       }
 
       // Step 3: Skip downloads if provider not available
-      if (!this.provider) {
+      const provider = this.getProvider();
+      if (!provider) {
         this.log("[CACHE] Provider not initialized - skipping downloads (offline mode)");
         return;
       }
@@ -143,7 +153,8 @@ class CacheManager {
   async downloadPhoto(photoId, maxRetries = 3) {
     try {
       // Check if provider is available
-      if (!this.provider) {
+      const provider = this.getProvider();
+      if (!provider) {
         throw new Error("Provider not initialized - offline mode");
       }
 
@@ -152,7 +163,7 @@ class CacheManager {
         try {
           this.log(`[CACHE] Downloading photo ${photoId} (attempt ${attempt}/${maxRetries})...`);
 
-          const stream = await this.provider.downloadPhoto(photoId, { timeout: 30000 });
+          const stream = await provider.downloadPhoto(photoId, { timeout: 30000 });
 
           // BLOB mode: Process and store in database
           if (this.useBlobStorage) {

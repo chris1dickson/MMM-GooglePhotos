@@ -108,24 +108,26 @@ updateInterval: 300000,  // 5 minutes
 
 ### `showWidth`
 - **Type**: Number (pixels)
-- **Default**: `1920`
+- **Default**: `1080` (code default, portrait)
+- **Common**: `1920` (landscape)
 - **Description**: Display width for photos (images resized to fit)
 
 ```javascript
-showWidth: 1920,   // Full HD landscape
-showWidth: 1080,   // HD portrait
+showWidth: 1920,   // Full HD landscape (recommended)
+showWidth: 1080,   // HD portrait (default)
 showWidth: 3840,   // 4K
 ```
 
 ### `showHeight`
 - **Type**: Number (pixels)
-- **Default**: `1080`
+- **Default**: `1920` (code default, portrait)
+- **Common**: `1080` (landscape)
 - **Description**: Display height for photos (images resized to fit)
 
 ```javascript
-showHeight: 1080,  // Landscape mode (16:9) - default
+showHeight: 1080,  // Landscape mode (16:9, recommended)
 showHeight: 1200,  // Landscape mode (16:10)
-showHeight: 1920,  // Portrait mode
+showHeight: 1920,  // Portrait mode (default)
 ```
 
 ### `timeFormat`
