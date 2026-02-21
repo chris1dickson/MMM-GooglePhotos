@@ -119,12 +119,12 @@ showWidth: 3840,   // 4K
 
 ### `showHeight`
 - **Type**: Number (pixels)
-- **Default**: `1200`
+- **Default**: `1080`
 - **Description**: Display height for photos (images resized to fit)
 
 ```javascript
+showHeight: 1080,  // Landscape mode (16:9) - default
 showHeight: 1200,  // Landscape mode (16:10)
-showHeight: 1080,  // Landscape mode (16:9)
 showHeight: 1920,  // Portrait mode
 ```
 

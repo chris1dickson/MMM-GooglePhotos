@@ -60,7 +60,7 @@ Add to `config/config.js`:
 
     updateInterval: 60000,  // Change photo every 60 seconds
     showWidth: 1920,
-    showHeight: 1200
+    showHeight: 1080
   }
 }
 ```
@@ -118,7 +118,7 @@ config: {
 | `folders` | `[]` | OneDrive folders (array of `{id, depth}`) |
 | `updateInterval` | `60000` | Photo change interval (ms) |
 | `showWidth` | `1920` | Display width (px) |
-| `showHeight` | `1200` | Display height (px) |
+| `showHeight` | `1080` | Display height (px) |
 
 ### Advanced Options
 
