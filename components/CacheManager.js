@@ -115,10 +115,8 @@ class CacheManager {
 
       this.log(`[CACHE] Downloading batch of ${photos.length} photos...`);
 
-      // Step 6: Batch download with failure tracking
-      const results = await Promise.allSettled(
-        photos.map(p => this.downloadPhoto(p.id))
-      );
+      // Step 6: Batch download with concurrency control (max 2 concurrent downloads)
+      const results = await this.downloadBatchWithConcurrency(photos, 2);
 
       const failures = results.filter(r => r.status === "rejected").length;
       const successes = results.filter(r => r.status === "fulfilled").length;
@@ -142,6 +140,29 @@ class CacheManager {
     } finally {
       this.isRunning = false;
     }
+  }
+
+  /**
+   * Download batch of photos with concurrency control
+   * Prevents overwhelming the network/API by limiting parallel downloads
+   * @param {Array} photos - Array of photo objects to download
+   * @param {number} concurrency - Maximum concurrent downloads (default: 2)
+   * @returns {Promise<Array>} Array of results (settled promises)
+   */
+  async downloadBatchWithConcurrency(photos, concurrency = 2) {
+    const results = [];
+    const queue = [...photos]; // Copy array to avoid mutation
+
+    // Process photos in batches of 'concurrency' size
+    while (queue.length > 0) {
+      const batch = queue.splice(0, concurrency);
+      const batchResults = await Promise.allSettled(
+        batch.map(p => this.downloadPhoto(p.id))
+      );
+      results.push(...batchResults);
+    }
+
+    return results;
   }
 
   /**

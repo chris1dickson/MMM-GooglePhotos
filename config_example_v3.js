@@ -86,8 +86,10 @@
     updateInterval: 1000 * 60,  // 60 seconds
 
     // Display resolution (used for image resizing & quality)
-    showWidth: 1080,
-    showHeight: 1920,
+    // Landscape mode (default): 1920x1080 - most common for displays/MagicMirror
+    // Portrait mode: 1080x1920
+    showWidth: 1920,
+    showHeight: 1080,
 
     // Time format for photo metadata
     timeFormat: "YYYY/MM/DD HH:mm",

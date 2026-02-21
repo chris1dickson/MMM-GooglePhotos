@@ -4,8 +4,8 @@
 //
 Module.register("MMM-CloudPhotos", {
   defaults: {
-    showWidth: 1080,
-    showHeight: 1920,
+    showWidth: 1920,  // Landscape (16:9) - most common for displays/MagicMirror
+    showHeight: 1080,
     timeFormat: "relative", // Use "relative" for "3 years ago" style, or a moment format like "YYYY/MM/DD HH:mm"
   },
   requiresVersion: "2.24.0",

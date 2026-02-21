@@ -89,6 +89,61 @@ const NodeHelperObject = {
   },
 
   /**
+   * Validate maxAuthRetries configuration
+   * @param {number|undefined} value - User-provided maxAuthRetries
+   * @returns {number} Validated maxAuthRetries value
+   */
+  validateMaxAuthRetries: function (value) {
+    if (value === undefined) {
+      return Infinity; // Default: retry forever
+    }
+
+    if (value === Infinity || value === "Infinity") {
+      return Infinity;
+    }
+
+    const parsed = Number(value);
+    if (isNaN(parsed) || parsed < 0) {
+      this.log_warn(`Invalid maxAuthRetries: ${value}. Using default: Infinity`);
+      return Infinity;
+    }
+
+    if (parsed === 0) {
+      this.log_warn("maxAuthRetries set to 0 - module will NOT retry on failure!");
+    }
+
+    return Math.floor(parsed); // Ensure integer
+  },
+
+  /**
+   * Validate maxAuthBackoffMs configuration
+   * @param {number|undefined} value - User-provided maxAuthBackoffMs
+   * @returns {number} Validated maxAuthBackoffMs value
+   */
+  validateMaxBackoffMs: function (value) {
+    const DEFAULT = 120000; // 2 minutes
+    const MIN = 5000;      // 5 seconds (minimum safe)
+    const MAX = 600000;    // 10 minutes (maximum reasonable)
+
+    if (value === undefined) {
+      return DEFAULT;
+    }
+
+    const parsed = Number(value);
+    if (isNaN(parsed) || parsed < MIN) {
+      this.log_warn(`Invalid maxAuthBackoffMs: ${value}. Using default: ${DEFAULT}ms`);
+      return DEFAULT;
+    }
+
+    if (parsed > MAX) {
+      this.log_warn(`maxAuthBackoffMs too large: ${value}ms. Capping at ${MAX}ms`);
+      return MAX;
+    }
+
+    return Math.floor(parsed); // Ensure integer
+  },
+
+  /**
    * Initialize all components
    */
   initialize: async function (config) {
@@ -101,9 +156,9 @@ const NodeHelperObject = {
       this.log_info("Initializing MMM-CloudPhotos V3...");
       this.config = config;
 
-      // Configure authentication retry behavior
-      this.maxAuthRetries = config.maxAuthRetries !== undefined ? config.maxAuthRetries : Infinity;
-      this.maxBackoffMs = config.maxAuthBackoffMs || 120000; // Default: 2 minutes
+      // Validate and configure authentication retry behavior
+      this.maxAuthRetries = this.validateMaxAuthRetries(config.maxAuthRetries);
+      this.maxBackoffMs = this.validateMaxBackoffMs(config.maxAuthBackoffMs);
 
       // Ensure cache directories exist
       await fs.promises.mkdir(this.cachePath, { recursive: true });
