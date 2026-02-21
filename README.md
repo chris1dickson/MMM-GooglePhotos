@@ -2,108 +2,70 @@
 
 Display your photos from **cloud storage providers** on [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror).
 
-## ☁️ Multi-Provider Architecture
+## ☁️ Supported Providers
 
-**MMM-CloudPhotos** (formerly MMM-GooglePhotos) now supports multiple cloud storage providers.
+- ✅ **Google Drive** - [Setup Guide](docs/GOOGLE_DRIVE_SETUP.md)
+- ✅ **OneDrive** - [Setup Guide](docs/ONEDRIVE_SETUP.md)
+- 🔄 **Dropbox, iCloud** - Coming soon
 
-### Currently Supported
+## ✨ Key Features
 
-- ✅ **Google Drive** - Display photos from Drive folders ([Setup Guide](docs/GOOGLE_DRIVE_SETUP.md))
-- ✅ **OneDrive** - Microsoft cloud storage with Delta API sync ([Setup Guide](ONEDRIVE_SETUP.md))
-
-### Coming Soon
-
-- 🔄 **Dropbox** - Popular file hosting
-- 🔄 **iCloud Photos** - Apple's photo service
-- 🔄 **Local Filesystem** - Scan local folders
-
-## Screenshots
-
-![screenshot](images/screenshot.png)
-![screenshot](images/screenshot2.png)
-
-## Features
-
-- ✅ Display photos from **Google Drive folders** (recursive scanning supported)
-- ✅ **Offline-first architecture** - 200MB local cache for resilience
-- ✅ **Efficient scanning** - Uses Drive Changes API (92% less API quota)
-- ✅ **BLOB storage mode** - Store processed images in SQLite for better performance
-- ✅ **Image optimization** - Automatic resizing and compression
-- ✅ **Full-screen display** - Perfect for MagicMirror setups
+- 🖼️ **Offline-first** - 200MB local cache, works without internet
+- 🔄 **Auto-recovery** - Automatically reconnects when network returns
+- 📊 **Connection status** - Visual indicator (☁ online, ⚠ offline, 🔄 retrying)
+- ⚡ **Efficient scanning** - Uses Delta/Changes API (92% less API quota)
+- 🗜️ **Smart caching** - Automatic image optimization with Sharp
+- 📁 **Flexible folders** - Recursive scanning with depth control
+- 🎨 **Multiple sort modes** - Sequential, random, newest, oldest
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
-### 1. Clone the Repository
+### 1. Install Module
 
 ```bash
 cd ~/MagicMirror/modules
-git clone https://github.com/chris1dickson/MMM-CloudPhotos.git MMM-CloudPhotos
+git clone https://github.com/chris1dickson/MMM-CloudPhotos.git
 cd MMM-CloudPhotos
 npm install
 ```
 
-### 2. Enable Google Drive API
+### 2. Setup Cloud Provider
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project (or use existing)
-3. Enable **Google Drive API**
-4. Go to **Credentials** → **Create Credentials** → **OAuth 2.0 Client ID**
-5. Choose **Desktop app** as application type
-6. Download credentials as JSON
-7. Save it as `google_drive_auth.json` in the module folder
+Choose your provider:
+- **Google Drive**: Follow [Google Drive Setup Guide](docs/GOOGLE_DRIVE_SETUP.md)
+- **OneDrive**: Follow [OneDrive Setup Guide](docs/ONEDRIVE_SETUP.md)
 
-### 3. Generate OAuth Token
+### 3. Configure MagicMirror
 
-```bash
-cd ~/MagicMirror/modules/MMM-CloudPhotos
-node generate_drive_token.js
-```
-
-Follow the prompts:
-1. Open the URL in your browser
-2. Authorize the application
-3. Copy the authorization code
-4. Paste it when prompted
-
-This creates `token_drive.json` in your module folder.
-
-### 4. Organize Photos in Google Drive
-
-1. Create a folder in Google Drive (e.g., "MagicMirror Photos")
-2. Upload/organize your photos into this folder
-3. You can use subfolders (e.g., "Family", "Vacation", etc.)
-4. Get the folder ID from the URL:
-   ```
-   https://drive.google.com/drive/folders/1a2b3c4d5e6f7g8h9i0j
-                                          ^^^^^^^^^^^^^^^^^^^^
-                                          This is the folder ID
-   ```
-
-### 5. Configure MagicMirror
-
-Add this to your `config/config.js`:
+Add to `config/config.js`:
 
 ```javascript
 {
   module: "MMM-CloudPhotos",
   position: "fullscreen_below",
   config: {
+    // Google Drive:
+    provider: "google-drive",
     driveFolders: [
-      {
-        id: "YOUR_FOLDER_ID",  // From Drive folder URL
-        depth: -1              // -1 = scan all subfolders
-      }
+      { id: "YOUR_FOLDER_ID", depth: -1 }
     ],
-    updateInterval: 60000,     // Change photo every 60 seconds
-    showWidth: 1080,
-    showHeight: 1920
+
+    // OR OneDrive:
+    // provider: "onedrive",
+    // folders: [
+    //   { id: "YOUR_FOLDER_ID", depth: -1 }
+    // ],
+
+    updateInterval: 60000,  // Change photo every 60 seconds
+    showWidth: 1920,
+    showHeight: 1200
   }
 }
 ```
 
-### 6. Restart MagicMirror
+### 4. Restart MagicMirror
 
 ```bash
 pm2 restart MagicMirror
@@ -111,651 +73,185 @@ pm2 restart MagicMirror
 
 ---
 
-## Configuration Options
+## 📖 Documentation
 
-### Core Settings
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `driveFolders` | Array | `[]` | **Required.** Array of Drive folder configurations |
-| `driveFolders[].id` | String/null | - | Folder ID from Drive URL. Use `null` for Drive root |
-| `driveFolders[].depth` | Number | `-1` | Folder scan depth: `-1` = infinite, `0` = folder only, `N` = N levels |
-| `updateInterval` | Number | `60000` | Photo change interval in milliseconds (minimum 10 seconds) |
-| `showWidth` | Number | `1080` | Display width in pixels (images resized to fit) |
-| `showHeight` | Number | `1920` | Display height in pixels (images resized to fit) |
-
-### Advanced Settings
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `keyFilePath` | String | `"./google_drive_auth.json"` | Path to OAuth credentials file |
-| `tokenPath` | String | `"./token_drive.json"` | Path to OAuth token file |
-| `sortMode` | String | `"sequential"` | Photo sort order: `"sequential"`, `"random"`, `"newest"`, `"oldest"` |
-| `maxCacheSizeMB` | Number | `200` | Maximum cache size in MB (~5-6 hours offline) |
-| `scanInterval` | Number | `21600000` | How often to scan for new photos (default: 6 hours) |
-| `timeFormat` | String | `"YYYY/MM/DD HH:mm"` | Time format for photo metadata |
-| `autoInfoPosition` | Boolean/Function | `false` | Auto-reposition photo info to prevent burn-in |
-| `debug` | Boolean | `false` | Enable verbose logging |
-
-### Image Processing & Storage
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `useBlobStorage` | Boolean | `true` | Store images as BLOBs in SQLite (requires Sharp) |
-| `blobQuality` | Number | `80` | JPEG quality (1-100) for image compression |
-
-**How it works (when Sharp is installed):**
-1. Photos are downloaded from Google Drive
-2. Sharp library resizes images to fit `showWidth` x `showHeight` (aspect ratio preserved)
-3. Resized images are compressed to JPEG at `blobQuality` %
-4. Images stored as BLOBs in SQLite (if `useBlobStorage: true`) or as files (if `false`)
-5. Result: ~70-80% smaller files, faster loading, less SD card wear
-
-**Without Sharp installed:**
-- Photos downloaded directly without resizing or compression
-- Original file sizes retained (larger cache usage)
-- Stored as files in `cache/images/` folder
-
-**Recommendation:** Install Sharp (`npm install sharp`) for automatic image optimization.
-
-See [BLOB_STORAGE_GUIDE.md](BLOB_STORAGE_GUIDE.md) for complete details.
-
-### Removed Options (Not Yet Implemented in V3)
-
-| Option | Status | Notes |
-|--------|--------|-------|
-| `albums` | ❌ Removed | Use `driveFolders` instead |
-| `sort` | ⚠️ Changed | Use `sortMode` instead (supports sequential, random, newest, oldest) |
-| `uploadAlbum` | ❌ Removed | Not implemented in V3 |
-| `condition` | ❌ Removed | Date/size filtering not yet implemented |
+- **[Configuration Guide](docs/CONFIGURATION.md)** - All configuration options explained
+- **[Google Drive Setup](docs/GOOGLE_DRIVE_SETUP.md)** - Complete Google Drive setup
+- **[OneDrive Setup](docs/ONEDRIVE_SETUP.md)** - Complete OneDrive setup
+- **[Installation Guide](docs/INSTALL.md)** - Detailed installation steps
+- **[BLOB Storage Guide](docs/BLOB_STORAGE_GUIDE.md)** - Performance optimization
+- **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Testing Guide](docs/TESTING.md)** - For developers and testing
 
 ---
 
-## Configuration Examples
+## 🌐 Offline Mode & Network Recovery
 
-### Basic Configuration
+MMM-CloudPhotos automatically handles network failures:
 
-```javascript
-{
-  module: "MMM-CloudPhotos",
-  position: "fullscreen_below",
-  config: {
-    driveFolders: [
-      { id: "YOUR_FOLDER_ID_HERE", depth: -1 }
-    ]
-  }
-}
-```
+- **Boots offline**: Shows cached photos immediately, no crashes
+- **Auto-retry**: Reconnects with exponential backoff (5s → 2min max)
+- **Visual status**: Connection indicator in photo metadata
+  - ☁ **Online** - Connected and syncing
+  - ⚠ **Offline** - Showing cached photos, retrying connection
+  - 🔄 **Retrying** - Currently attempting to reconnect
+- **Seamless recovery**: Automatically resumes syncing when network returns
 
-### Multiple Folders with Different Depths
-
-```javascript
-{
-  module: "MMM-CloudPhotos",
-  position: "fullscreen_below",
-  config: {
-    driveFolders: [
-      { id: "1a2b3c4d5e6f7g8h9i0j", depth: -1 },  // Family photos (all subfolders)
-      { id: "2b3c4d5e6f7g8h9i0j1k", depth: 0 },   // Vacation (this folder only)
-      { id: null, depth: 1 }                       // Drive root (1 level deep)
-    ],
-    updateInterval: 60000,  // 1 minute per photo
-    maxCacheSizeMB: 300     // Increase cache to 300MB
-  }
-}
-```
-
-### Custom Display Settings
-
-```javascript
-{
-  module: "MMM-CloudPhotos",
-  position: "top_right",
-  config: {
-    driveFolders: [
-      { id: "YOUR_FOLDER_ID", depth: -1 }
-    ],
-    updateInterval: 120000,  // 2 minutes per photo
-    showWidth: 1920,         // 4K resolution
-    showHeight: 1080,
-    autoInfoPosition: true,  // Prevent burn-in
-    debug: true              // Verbose logging
-  }
-}
-```
-
-### Sort Mode Examples
-
-```javascript
-{
-  module: "MMM-CloudPhotos",
-  position: "fullscreen_below",
-  config: {
-    driveFolders: [
-      { id: "YOUR_FOLDER_ID", depth: -1 }
-    ],
-    sortMode: "newest",      // Show newest photos first
-    // Options:
-    // "sequential" (default) - Deterministic order by photo ID
-    // "random"               - Random order, prioritizes unviewed photos
-    // "newest"               - Newest photos first by creation date
-    // "oldest"               - Oldest photos first by creation date
-    updateInterval: 60000
-  }
-}
-```
-
----
-
-## Performance Optimization
-
-### Enable BLOB Storage (Recommended)
-
-Install Sharp for image processing:
-```bash
-cd ~/MagicMirror/modules/MMM-CloudPhotos
-npm install sharp
-```
-
-Enable in config:
+Configuration:
 ```javascript
 config: {
-  useBlobStorage: true,
-  blobQuality: 80,
-  maxCacheSizeMB: 200
+  maxAuthRetries: Infinity,       // Retry forever (or set a limit)
+  maxAuthBackoffMs: 120000,       // Max 2 minutes between retries
 }
 ```
 
-**Benefits:**
-- 50% fewer I/O operations
-- Better cache efficiency
-- Reduced SD card wear
-- Faster image loading
+---
 
-See [BLOB_STORAGE_GUIDE.md](BLOB_STORAGE_GUIDE.md) for complete details.
+## ⚙️ Configuration Highlights
 
-### For Large Photo Collections (10K+ photos)
+### Basic Options
 
+| Option | Default | Description |
+|--------|---------|-------------|
+| `provider` | `"google-drive"` | Cloud provider: `"google-drive"` or `"onedrive"` |
+| `driveFolders` | `[]` | Google Drive folders (array of `{id, depth}`) |
+| `folders` | `[]` | OneDrive folders (array of `{id, depth}`) |
+| `updateInterval` | `60000` | Photo change interval (ms) |
+| `showWidth` | `1920` | Display width (px) |
+| `showHeight` | `1200` | Display height (px) |
+
+### Advanced Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `sortMode` | `"sequential"` | Sort mode: `sequential`, `random`, `newest`, `oldest` |
+| `maxCacheSizeMB` | `200` | Maximum cache size (~5-6 hours offline) |
+| `scanInterval` | `21600000` | Scan for new photos (6 hours) |
+| `useBlobStorage` | `true` | Store images in SQLite (requires Sharp) |
+| `maxAuthRetries` | `Infinity` | Authentication retry attempts |
+| `maxAuthBackoffMs` | `120000` | Max retry backoff (2 minutes) |
+
+**[→ See all configuration options](docs/CONFIGURATION.md)**
+
+---
+
+## 🎯 Example Configurations
+
+### Multiple Folders
 ```javascript
 config: {
   driveFolders: [
-    { id: "YOUR_FOLDER_ID", depth: 2 }  // Limit depth to avoid long scans
-  ],
-  scanInterval: 43200000,  // Scan every 12 hours instead of 6
-  maxCacheSizeMB: 500      // Increase cache if you have space
+    { id: "1a2b3c", depth: -1 },  // Family (all subfolders)
+    { id: "2b3c4d", depth: 0 },   // Vacation (no subfolders)
+    { id: null, depth: 1 }         // Drive root (1 level)
+  ]
 }
 ```
 
-### For Slow Networks
-
+### Sort by Newest Photos
 ```javascript
 config: {
-  maxCacheSizeMB: 100,     // Smaller cache
-  updateInterval: 120000   // Change photos less frequently (2 min)
+  sortMode: "newest",
+  updateInterval: 120000  // 2 minutes per photo
 }
 ```
 
-### For Maximum Offline Time
-
+### Large Offline Cache
 ```javascript
 config: {
-  maxCacheSizeMB: 1000,    // 1GB cache (~30 hours offline)
+  maxCacheSizeMB: 1000,    // 1GB cache
   scanInterval: 86400000   // Scan once per day
 }
 ```
 
-### Optimize for Raspberry Pi
+---
 
-- Use BLOB storage to reduce SD card wear
-- Set appropriate `showWidth` and `showHeight` for your screen
-- Limit `driveFolders` depth if you have many photos
-- Increase `updateInterval` if experiencing performance issues
+## 🔧 Troubleshooting
+
+**Module not loading?**
+- Check logs: `pm2 logs MagicMirror`
+- Verify OAuth credentials exist
+- See [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+
+**No photos appearing?**
+- Verify folder ID is correct
+- Check folder contains image files
+- Review [Troubleshooting Guide](docs/TROUBLESHOOTING.md)
+
+**Authentication errors?**
+```bash
+cd ~/MagicMirror/modules/MMM-CloudPhotos
+rm token_*.json
+node generate_drive_token.js  # or generate_onedrive_token.js
+```
 
 ---
 
-## How It Works
-
-### Architecture
+## 📊 How It Works
 
 ```
-Cloud Storage (Google Drive / OneDrive / etc)
+Cloud Storage (Drive/OneDrive)
     ↓
 Provider scans folders (with depth control)
     ↓
 PhotoDatabase stores metadata (SQLite)
     ↓
-CacheManager downloads photos (batch=5, 30s ticks)
+CacheManager downloads photos (batch, background)
     ↓
-Display shows photos every 60s (from cache)
+Display shows photos (from cache, instant)
 ```
 
-### Key Features
-
-**Efficient Scanning:**
-- Initial scan: Full folder scan (~5 minutes for 10K photos)
-- Incremental scan: Changes API (1-5 API calls, <3 seconds)
-- Runs every 6 hours (configurable)
-
-**Smart Caching:**
-- Downloads 5 photos every 30 seconds in background
-- 200MB cache (~5-6 hours offline)
-- Automatic eviction of least-recently-viewed photos
-- Photos display from local cache (instant, no network needed)
-
-**Network Resilience:**
-- Graceful degradation after 3 consecutive failures
-- Cached photos continue displaying during outages
-- Automatically resumes when connection returns
-- No confusing error messages
-
-**API Quota Compliance:**
-- ~270 API calls/day (1.67% of free tier limit)
-- Incremental scanning saves 92% of API quota
-- Read-only scope: `drive.readonly`
+**Key Features:**
+- **Incremental scanning**: Only fetches changes (92% API savings)
+- **Smart caching**: Downloads 5 photos/30s, auto-evicts old photos
+- **Network resilient**: Continues showing photos during outages
+- **API efficient**: ~270 calls/day (1.67% of free tier)
 
 ---
 
-## Troubleshooting
+## 🧪 Testing
 
-### Module not loading
-
-1. Check logs: `pm2 logs MagicMirror`
-2. Verify `google_drive_auth.json` exists
-3. Verify `token_drive.json` was generated
-4. Check Node.js version: `node --version` (requires v18+)
-5. Check dependencies: `npm install`
-
-### No photos appearing
-
-1. Verify folder ID is correct (check Drive URL)
-2. Check folder has image files (JPG, PNG, GIF, WEBP)
-3. Ensure photos are not in Google Drive's trash
-4. Check file permissions (you must have access)
-5. Check Drive API quota: [Google Cloud Console](https://console.cloud.google.com)
-6. Review logs for errors: `pm2 logs MagicMirror --lines 100`
-
-### Authentication errors
-
-Regenerate token:
-```bash
-cd ~/MagicMirror/modules/MMM-CloudPhotos
-rm token_drive.json
-node generate_drive_token.js
-```
-
-Verify:
-1. `google_drive_auth.json` exists and is valid
-2. Google Drive API is enabled in Cloud Console
-3. OAuth consent screen is configured
-
-### Photos not updating
-
-1. Check `scanInterval` setting (default: 6 hours)
-2. Check console logs: `pm2 logs MagicMirror`
-3. Manually trigger scan by restarting: `pm2 restart MagicMirror`
-4. Verify new photos are in the Drive folder
-
-### Cache full or out of disk space
-
-1. Increase `maxCacheSizeMB` if you have space
-2. Or reduce number of photos in Drive folders
-3. Check cache directory: `~/MagicMirror/modules/MMM-CloudPhotos/cache/`
-4. Clean old cache: `rm -rf cache/`
-
----
-
-## CSS Customizations
-
-### Hide Photo Info
-
-Add to `~/MagicMirror/css/custom.css`:
-```css
-#GPHOTO_INFO {
-  display: none;
-}
-```
-
-### Move Info to Top-Left
-
-```css
-#GPHOTO_INFO {
-  top: 10px;
-  left: 10px;
-  bottom: inherit;
-  right: inherit;
-}
-```
-
-### Cover Whole Region
-
-```css
-#GPHOTO_CURRENT {
-  background-size: cover;
-}
-```
-
-### Contain Image (Fully Visible)
-
-```css
-#GPHOTO_CURRENT {
-  background-size: contain;
-}
-```
-
-### Add Opacity
-
-```css
-@keyframes trans {
-  from {opacity: 0}
-  to {opacity: 0.5}
-}
-#GPHOTO_CURRENT {
-  background-size: cover;
-  opacity: 0.5;
-}
-```
-
----
-
-## Migration from V2 (Google Photos) to V3 (Google Drive)
-
-> **Note:** V2 (Google Photos API) stopped working in March 2025. If you're a new user, skip this section and use the Quick Start above.
-
-### For Existing V2 Users:
-
-**What Changed:**
-- V2 used `albums: ["Album Name"]` - **No longer works**
-- V3 uses `driveFolders: [{id: "...", depth: -1}]` - **Works now**
-
-**Migration Steps:**
-
-1. **Move your photos** from Google Photos to Google Drive:
-   - Create folders in Google Drive
-   - Upload/move your photos there
-   - Get folder IDs from Drive URLs
-
-2. **Update your config.js**:
-   ```javascript
-   // Replace this (V2 - broken):
-   albums: ["Family Photos", "Vacation 2024"]
-
-   // With this (V3 - working):
-   driveFolders: [
-     { id: "1a2b3c4d5e6f7g8h9i0j", depth: -1 },  // Family Photos
-     { id: "2b3c4d5e6f7g8h9i0j1k", depth: -1 }   // Vacation 2024
-   ]
-   ```
-
-3. **Set up Google Drive API** (see Quick Start above)
-
-4. **Clean old cache**:
-   ```bash
-   cd ~/MagicMirror/modules/MMM-CloudPhotos
-   rm -rf cache/*
-   pm2 restart MagicMirror
-   ```
-
----
-
-## FAQ
-
-**Q: Can I use both Google Photos albums and Drive folders?**
-A: No, V3 only supports Google Drive. Google Photos API is deprecated.
-
-**Q: Will my photos in Google Photos work?**
-A: No, you need to move/copy photos to Google Drive folders.
-
-**Q: Can I filter photos by date or size?**
-A: Not yet. This feature is planned for a future release.
-
-**Q: Can I upload photos from MagicMirror?**
-A: Not in V3. This feature may return in a future release.
-
-**Q: How much does Google Drive API cost?**
-A: It's free! The free tier allows 1B queries/day. V3 uses ~270/day.
-
-**Q: What happens if I exceed the cache limit?**
-A: The module automatically evicts the least-recently-viewed photos.
-
-**Q: Can I use photos from shared drives?**
-A: Yes, as long as you have read access to the folder.
-
----
-
-## Testing & Development
-
-### Available Test Scripts
-
-The module includes several test scripts for validation and development:
-
-#### 1. Comprehensive Test Suite
+Run tests to verify installation:
 
 ```bash
 cd ~/MagicMirror/modules/MMM-CloudPhotos
-node test_v3_standalone.js
+npm test                      # Jest unit tests
+node quick-test.js            # Quick integration test
+node test_v3_standalone.js    # Comprehensive test
 ```
 
-**What it tests:**
-- Google Drive API authentication
-- Folder scanning (with depth control)
-- Photo database operations
-- Cache management (file-based and BLOB)
-- All 4 sort modes (sequential, random, newest, oldest)
-- Changes API (incremental scanning)
-- Image download and processing
-
-**Prerequisites:**
-- OAuth credentials (`google_drive_auth.json`)
-- Valid token (`token_drive.json`)
-- Edit folder ID in script before running
-
-#### 2. Quick Test (Pre-configured)
-
-```bash
-cd ~/MagicMirror/modules/MMM-CloudPhotos
-node quick-test.js
-```
-
-**What it does:**
-- Quick validation of basic functionality
-- Uses configuration from `test-config.json`
-- Faster than comprehensive test suite
-
-**Setup:**
-1. Copy `test-config.json.example` to `test-config.json`
-2. Edit with your folder ID
-3. Run the script
-
-#### 3. BLOB Storage Test
-
-```bash
-cd ~/MagicMirror/modules/MMM-CloudPhotos
-npm install sharp  # Required for BLOB storage
-node test_blob_storage.js
-```
-
-**What it tests:**
-- Sharp image processing
-- BLOB storage in SQLite
-- Image resizing and compression
-- Performance comparison (BLOB vs file-based)
-
-#### 4. OneDrive Provider Test
-
-```bash
-cd ~/MagicMirror/modules/MMM-CloudPhotos
-node test_onedrive.js
-```
-
-**What it tests:**
-- OneDrive API authentication (Microsoft Graph)
-- OneDrive folder scanning
-- Delta API for incremental sync
-- Photo caching with OneDrive
-- Token refresh functionality
-
-**Setup:**
-1. Create `test-config-onedrive.json` (see `test-config-onedrive.json.example`)
-2. Run `node generate_onedrive_token.js` to get OAuth token
-3. Add your folder ID to config
-4. Run the test script
-
-**Config format:**
-```json
-{
-  "clientId": "YOUR_AZURE_CLIENT_ID",
-  "clientSecret": "YOUR_AZURE_CLIENT_SECRET",
-  "tokenPath": "./token_onedrive.json",
-  "folders": [
-    { "id": "YOUR_FOLDER_ID", "depth": -1 }
-  ]
-}
-```
-
-#### 5. Jest Unit Tests
-
-```bash
-cd ~/MagicMirror/modules/MMM-CloudPhotos
-npm install  # Install dev dependencies
-npm test     # Run all tests with coverage
-```
-
-**Test commands:**
-- `npm test` - Run all tests with coverage report
-- `npm run test:unit` - Run unit tests only
-- `npm run test:integration` - Run integration tests only
-- `npm run test:watch` - Watch mode for development
-
-**What it tests:**
-- `PhotoDatabase` - Database operations, sort modes, cache management
-- `CacheManager` - Cache eviction, BLOB storage, size limits
-- `full-workflow` - End-to-end integration test
-
-#### 6. Linting
-
-```bash
-npm run lint:js
-```
-
-Runs ESLint with auto-fix to ensure code quality.
-
-### Test Configuration
-
-#### Google Drive Tests
-
-Most test scripts require a configuration file. Create `test-config.json`:
-
-```json
-{
-  "driveFolders": [
-    {
-      "id": "YOUR_FOLDER_ID_HERE",
-      "depth": -1
-    }
-  ],
-  "keyFilePath": "./google_drive_auth.json",
-  "tokenPath": "./token_drive.json",
-  "maxCacheSizeMB": 200,
-  "useBlobStorage": true,
-  "sortMode": "sequential"
-}
-```
-
-#### OneDrive Tests
-
-For OneDrive testing, create `test-config-onedrive.json`:
-
-```json
-{
-  "clientId": "YOUR_AZURE_CLIENT_ID",
-  "clientSecret": "YOUR_AZURE_CLIENT_SECRET",
-  "tokenPath": "./token_onedrive.json",
-  "folders": [
-    { "id": "YOUR_FOLDER_ID", "depth": -1 }
-  ]
-}
-```
-
-See `ONEDRIVE_SETUP.md` for Azure app setup instructions.
-
-### Development Workflow
-
-1. **Setup:** Generate OAuth credentials and token
-2. **Unit tests:** `npm run test:unit` (fast, no API calls)
-3. **Integration tests:** `npm run test:integration` (requires API access)
-4. **Standalone tests:** `node test_v3_standalone.js` (full validation)
-5. **Lint:** `npm run lint:js` (ensure code quality)
-
-### Test Output Examples
-
-**Successful test run:**
-```
-[2025-02-08T12:00:00.000Z] ℹ️  TEST: Sequential Sort Mode
-[2025-02-08T12:00:00.100Z] ✅ Sort mode test passed
-[2025-02-08T12:00:00.200Z] ℹ️  TEST: Random Sort Mode
-[2025-02-08T12:00:00.300Z] ✅ Sort mode test passed
-```
-
-**Failed authentication:**
-```
-❌ Error: Authentication failed
-   Check google_drive_auth.json and token_drive.json
-```
+See [Testing Guide](docs/TESTING.md) for details.
 
 ---
 
-## Additional Documentation
-
-- **[Installation Guide](INSTALL.md)** - Detailed step-by-step installation
-- **[BLOB Storage Guide](BLOB_STORAGE_GUIDE.md)** - Performance optimization with BLOB storage
-
----
-
-## Requirements
+## 📋 Requirements
 
 - MagicMirror² v2.0.0+
 - Node.js v18+
-- Google Drive account
-- Google Cloud project with Drive API enabled
-- (Optional) Sharp for BLOB storage: `npm install sharp`
+- Google Drive or OneDrive account
+- (Optional) Sharp for image optimization: `npm install sharp`
 
 ---
 
-## Known Limitations
-
-### V3 Does Not Support:
-1. ❌ Photo filtering by date/size/ratio (planned for future)
-2. ❌ Uploading photos from MagicMirror
-3. ❌ Google Photos albums (use Drive folders instead)
-
-### Future Enhancements:
-- Photo filters (date range, aspect ratio)
-- Extended offline mode (preserve cache)
-- View statistics and favorites
-- Multiple Google accounts
-
----
-
-## License
+## 📝 License
 
 MIT
 
 ---
 
-## Credits
+## 👏 Credits
 
-- Original module by [@eouia](https://github.com/eouia)
-- Previous maintainer: [@hermanho](https://github.com/hermanho)
-- Current maintainer: [@chris1dickson](https://github.com/chris1dickson)
-- V3 Drive migration and enhancements
+- Original: [@eouia](https://github.com/eouia)
+- Previous: [@hermanho](https://github.com/hermanho)
+- Current: [@chris1dickson](https://github.com/chris1dickson)
 
 ---
 
-## Support
+## 💬 Support
 
-- Check the documentation above
-- Review [Issues](https://github.com/chris1dickson/MMM-CloudPhotos/issues)
-- For Google API questions, see [Google Drive API docs](https://developers.google.com/drive)
+- [Documentation](docs/)
+- [Issues](https://github.com/chris1dickson/MMM-CloudPhotos/issues)
+- [Google Drive API Docs](https://developers.google.com/drive)
 
 ---
 
