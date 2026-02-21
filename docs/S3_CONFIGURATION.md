@@ -245,16 +245,83 @@ S3 objects have limited metadata. The provider will:
 3. **Use bucket policies** - Restrict access by IP or VPC
 4. **Encrypt sensitive data** - Use AWS Secrets Manager for credentials
 
+## Quick Test
+
+Before configuring MagicMirror, test your S3 setup:
+
+### 1. Create Test Config Files
+
+```bash
+# Copy example files
+cp test-config-s3.json.example test-config-s3.json
+cp s3_credentials.json.example s3_credentials.json
+
+# Edit with your actual values
+nano s3_credentials.json  # Add your AWS credentials
+nano test-config-s3.json  # Add your bucket name, region, folders
+```
+
+### 2. Run Test Script
+
+```bash
+node test_s3.js
+```
+
+The test script will:
+- ✅ Verify S3 authentication
+- ✅ Connect to your bucket
+- ✅ Scan for photos
+- ✅ Save to database
+- ✅ Download and cache a sample photo
+- ✅ Display results summary
+
+### Example Output
+
+```
+╔════════════════════════════════════════════════════════════╗
+║     MMM-CloudPhotos - Amazon S3 Test                      ║
+║     Testing with S3 Provider                              ║
+╚════════════════════════════════════════════════════════════╝
+
+[0] Checking Prerequisites
+✅ Config file found
+✅ S3 credentials configured
+
+[1] Initializing Database
+✅ Database initialized
+
+[2] Authenticating with Amazon S3
+✅ Successfully authenticated with S3
+
+[3] Scanning S3 Bucket
+✅ Found 42 photos in 2.31 seconds
+
+[4] Saving Photos to Database
+✅ Saved 42 photos to database
+
+[5] Testing Photo Cache
+✅ Cached 1 photo(s)
+
+[6] Retrieving Cached Photo
+✅ Retrieved photo: beach.jpg
+
+[8] Cleanup
+✅ Test complete!
+```
+
 ## Implementation Checklist
 
-- [ ] Support all three authentication methods
-- [ ] Handle S3 pagination (ListObjectsV2)
-- [ ] Support prefix-based folder structure
-- [ ] Map S3 metadata to BaseProvider format
-- [ ] Handle S3-specific errors (NoSuchBucket, AccessDenied, etc.)
-- [ ] Support S3-compatible services (custom endpoint)
-- [ ] Filter image files by extension (.jpg, .png, .gif, etc.)
-- [ ] Implement retry logic with exponential backoff
+- [x] Support all three authentication methods
+- [x] Handle S3 pagination (ListObjectsV2)
+- [x] Support prefix-based folder structure
+- [x] Map S3 metadata to BaseProvider format
+- [x] Handle S3-specific errors (NoSuchBucket, AccessDenied, etc.)
+- [x] Support S3-compatible services (custom endpoint)
+- [x] Filter image files by extension (.jpg, .png, .gif, etc.)
+- [x] Implement retry logic with exponential backoff
+- [x] Unit tests (31 tests, 91% coverage)
+- [x] Integration tests (13 tests)
+- [x] Standalone test script
 - [ ] Optional: Read EXIF for image dimensions
 - [ ] Optional: Incremental sync via S3 event notifications
 

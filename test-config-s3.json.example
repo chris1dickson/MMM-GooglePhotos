@@ -1,0 +1,12 @@
+{
+  "bucketName": "my-photos-bucket",
+  "region": "us-east-1",
+  "credentialsPath": "./s3_credentials.json",
+  "bucketPrefix": "",
+  "driveFolders": [
+    {
+      "id": "photos/",
+      "depth": -1
+    }
+  ]
+}
