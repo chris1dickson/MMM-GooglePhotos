@@ -412,20 +412,27 @@ const NodeHelperObject = {
       if (photos.length > 0) {
         this.log_info(`Found ${photos.length} photos, saving to database...`);
         await this.database.savePhotos(photos);
+      }
 
-        const totalCount = await this.database.getTotalPhotoCount();
-        const cachedCount = await this.database.getCachedPhotoCount();
+      // Always update status with current database counts (not just when photos.length > 0)
+      const totalCount = await this.database.getTotalPhotoCount();
+      const cachedCount = await this.database.getCachedPhotoCount();
 
-        this.log_info(`Database now has ${totalCount} photos (${cachedCount} cached)`);
-        this.sendSocketNotification("CONNECTION_STATUS", {
-          status: "online",
-          message: `Online - ${totalCount} photos`
-        });
-      } else {
+      if (totalCount === 0) {
         this.log_warn("No photos found in configured folders");
         this.sendSocketNotification("CONNECTION_STATUS", {
           status: "online",
           message: "Online - no photos found"
+        });
+      } else {
+        if (photos.length > 0) {
+          this.log_info(`Database now has ${totalCount} photos (${cachedCount} cached)`);
+        } else {
+          this.log_info(`No changes detected. Database has ${totalCount} photos (${cachedCount} cached)`);
+        }
+        this.sendSocketNotification("CONNECTION_STATUS", {
+          status: "online",
+          message: `Online - ${totalCount} photos`
         });
       }
 
