@@ -10,6 +10,7 @@
 const PROVIDERS = {
   "google-drive": () => require("./GoogleDriveProvider"),
   "onedrive": () => require("./OneDriveProvider"),
+  "s3": () => require("./S3Provider"),
   // Future providers:
   // "dropbox": () => require("./DropboxProvider"),
   // "icloud": () => require("./iCloudProvider"),

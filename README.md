@@ -6,6 +6,7 @@ Display your photos from **cloud storage providers** on [MagicMirror²](https://
 
 - ✅ **Google Drive** - [Setup Guide](docs/GOOGLE_DRIVE_SETUP.md)
 - ✅ **OneDrive** - [Setup Guide](docs/ONEDRIVE_SETUP.md)
+- ✅ **Amazon S3** - [Setup Guide](docs/S3_CONFIGURATION.md)
 - 🔄 **Dropbox, iCloud** - Coming soon
 
 ## ✨ Key Features
@@ -36,6 +37,7 @@ npm install
 Choose your provider:
 - **Google Drive**: Follow [Google Drive Setup Guide](docs/GOOGLE_DRIVE_SETUP.md)
 - **OneDrive**: Follow [OneDrive Setup Guide](docs/ONEDRIVE_SETUP.md)
+- **Amazon S3**: Follow [S3 Configuration Guide](docs/S3_CONFIGURATION.md)
 
 ### 3. Configure MagicMirror
 
@@ -58,6 +60,15 @@ Add to `config/config.js`:
     //   { id: "YOUR_FOLDER_ID", depth: -1 }
     // ],
 
+    // OR Amazon S3:
+    // provider: "s3",
+    // bucketName: "my-photos-bucket",
+    // region: "us-east-1",
+    // credentialsPath: "./s3_credentials.json",
+    // driveFolders: [
+    //   { id: "photos/", depth: -1 }
+    // ],
+
     updateInterval: 60000,  // Change photo every 60 seconds
     showWidth: 1920,
     showHeight: 1080
@@ -78,6 +89,7 @@ pm2 restart MagicMirror
 - **[Configuration Guide](docs/CONFIGURATION.md)** - All configuration options explained
 - **[Google Drive Setup](docs/GOOGLE_DRIVE_SETUP.md)** - Complete Google Drive setup
 - **[OneDrive Setup](docs/ONEDRIVE_SETUP.md)** - Complete OneDrive setup
+- **[Amazon S3 Setup](docs/S3_CONFIGURATION.md)** - Complete S3 configuration guide
 - **[Installation Guide](docs/INSTALL.md)** - Detailed installation steps
 - **[BLOB Storage Guide](docs/BLOB_STORAGE_GUIDE.md)** - Performance optimization
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions

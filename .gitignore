@@ -11,6 +11,8 @@ package-lock.json
 google_drive_auth.json
 token_drive.json
 google_auth.json
+token_onedrive.json
+s3_credentials.json
 test-config.json
 
 # Test outputs
